@@ -1,0 +1,42 @@
+name: Deploy server
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "server/**"
+      - "action/internal/**"
+      - "action/utils/footer.ts"
+      - "action/utils/progressComment.ts"
+      - "action/utils/runStatusCheck.ts"
+      - "deploy/**"
+      - ".github/workflows/deploy-server.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-server
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+      - name: Pull and rebuild on the VPS
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          PORT: ${{ secrets.DEPLOY_PORT }}
+          USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh-keyscan -p "$PORT" "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          # the deploy key is pinned to a forced command on the VPS (git pull + compose up),
+          # so whatever is passed here is ignored; connecting is the deploy.
+          ssh -p "$PORT" "$USER@$HOST" deploy
+      - name: Health check
+        run: |
+          sleep 5
+          curl -fsS https://reviewx.programistich.com/healthz
