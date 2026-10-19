@@ -9,18 +9,6 @@ import { isPullfrog } from "./isPullfrog.ts";
 import type { RepoSettings } from "./runContext.ts";
 import { validateCompatibility } from "./versioning.ts";
 
-// tool permission enum types for inputs
-const ShellPermissionInput = type.enumerated("disabled", "restricted", "enabled");
-const PushPermissionInput = type.enumerated("disabled", "restricted", "enabled");
-// opt-in toggle for posting `pullfrog` / `pullfrog-approval` commit-status
-// check-runs (branch protection). off by default — a new required-check
-// surface must not silently turn on.
-const StatusChecksInput = type.enumerated("disabled", "enabled");
-// opt-out for the temporary "Leaping into action..." comment + live task-list
-// updates. on by default; the repo setting is the only half the dispatcher can
-// see, so this input can suppress live updates but not a comment already seeded.
-const ProgressCommentsInput = type.enumerated("disabled", "enabled");
-
 // raises THIS run's logging. enumerated like its sibling toggles so a typo
 // hard-fails at Inputs.assert rather than silently leaving debug off — the one
 // failure mode you cannot afford in a switch whose purpose is seeing into a run
@@ -77,10 +65,9 @@ export const Inputs = type({
   "effort?": type.string.or("undefined"),
   "debug?": DebugInput.or("undefined"),
   "timeout?": type.string.or("undefined"),
-  "push?": PushPermissionInput.or("undefined"),
-  "shell?": ShellPermissionInput.or("undefined"),
-  "status_checks?": StatusChecksInput.or("undefined"),
-  "progress_comments?": ProgressCommentsInput.or("undefined"),
+  // read by `resolveSettingsFromInputs`; listed here so fixtures can type them.
+  "push?": type.enumerated("disabled", "restricted", "enabled").or("undefined"),
+  "shell?": type.enumerated("disabled", "restricted", "enabled").or("undefined"),
   "cwd?": type.string.or("undefined"),
   "output_schema?": type.string.or("undefined"),
 });
@@ -241,28 +228,6 @@ function resolvePromptFile(input: string): string {
   return content;
 }
 
-/**
- * `status_checks` is deprecated: both checks it governed are now repo settings, editable in
- * the console, and the server reads those directly (it never parses workflow YAML, so an
- * input could never gate the server-seeded `pullfrog` check anyway).
- *
- * Honoured INDEFINITELY on v0, not on a countdown. The backfill covered every repo the app
- * can currently read, but a dormant install (uninstalled or suspended, so its workflow is
- * unreadable) can return at any time carrying this input, and would lose a required check the
- * moment it went inert. That condition never expires, so do not promise a removal here —
- * dropping it is a v1 question. Warn instead; the annotation surfaces on the run.
- */
-function warnIfDeprecatedStatusChecks(value: string | undefined): string | undefined {
-  if (value !== undefined) {
-    core.warning(
-      "`status_checks` is deprecated. Both checks are now repository settings — open the " +
-        "Pullfrog console for this repo (Automations → Review PRs) and set them there, then " +
-        "remove `status_checks` from your workflow. It keeps working until you do."
-    );
-  }
-  return value;
-}
-
 function resolveNonPromptInputs() {
   return Inputs.omit("prompt", "prompt_file").assert({
     model: core.getInput("model") || undefined,
@@ -270,10 +235,6 @@ function resolveNonPromptInputs() {
     debug: core.getInput("debug") || undefined,
     timeout: core.getInput("timeout") || undefined,
     cwd: core.getInput("cwd") || undefined,
-    push: core.getInput("push") || undefined,
-    shell: core.getInput("shell") || undefined,
-    status_checks: warnIfDeprecatedStatusChecks(core.getInput("status_checks") || undefined),
-    progress_comments: core.getInput("progress_comments") || undefined,
   });
 }
 
@@ -308,24 +269,10 @@ export function resolvePayload(
   const debug = jsonPayload?.debug ?? inputs.debug === "enabled";
   if (debug) process.env.LOG_LEVEL = "debug";
 
-  // determine shell permission - strictest setting wins
-  // precedence: disabled > restricted > enabled
-  // non-collaborators always get at least "restricted"
+  // determine shell permission: the `shell` input (via repoSettings) decides,
+  // but non-collaborators always get at most "restricted".
   const isNonCollaborator = !isCollaborator(event);
-  const repoShell = repoSettings.shell ?? "restricted";
-  const inputShell = inputs.shell;
-
-  // resolve shell: start with repo setting, then apply restrictions
-  let resolvedShell = repoShell;
-
-  // input can only make it stricter (disabled > restricted > enabled)
-  if (inputShell === "disabled") {
-    resolvedShell = "disabled";
-  } else if (inputShell === "restricted" && resolvedShell === "enabled") {
-    resolvedShell = "restricted";
-  }
-
-  // non-collaborators get at least "restricted" (can't have "enabled")
+  let resolvedShell = repoSettings.shell;
   if (isNonCollaborator && resolvedShell === "enabled") {
     resolvedShell = "restricted";
   }
@@ -352,31 +299,18 @@ export function resolvePayload(
     progressComment: jsonPayload?.progressComment,
     checkRun: jsonPayload?.checkRun,
 
-    // permissions: inputs > repoSettings > fallbacks
-    push: inputs.push ?? repoSettings.push ?? "restricted",
+    push: repoSettings.push,
     shell: resolvedShell,
 
-    // the `pullfrog` run-lifecycle check. ON by default — the whole point is that a PR
-    // shows whether Pullfrog is running without anyone having to opt in. the workflow
-    // input is the source of truth when set (mirrors `push`); otherwise the repo
-    // setting decides.
-    runStatusCheck:
-      inputs.status_checks === undefined
-        ? repoSettings.statusChecks
-        : inputs.status_checks === "enabled",
+    // the `reviewx` run-lifecycle check. ON by default — the whole point is that a PR
+    // shows whether ReviewX is running without anyone having to opt in.
+    runStatusCheck: repoSettings.statusChecks,
 
-    // the `pullfrog-approval` verdict check. `Repo.approvalCheck` is authoritative; the
-    // `status_checks` input is DEPRECATED but still honoured, for the dormant installs the
-    // backfill could not read (see `warnIfDeprecatedStatusChecks`). OR rather than override:
-    // this can only ever turn the check ON, never off, so no existing user loses it.
-    approvalCheck: repoSettings.approvalCheck || inputs.status_checks === "enabled",
+    // the `reviewx-approval` verdict check. off by default — it is a merge gate.
+    approvalCheck: repoSettings.approvalCheck,
 
-    // temporary progress chrome. the workflow input is the source of truth when
-    // set (mirrors `push`); otherwise the repo setting decides. defaults to true.
-    progressComments:
-      inputs.progress_comments === undefined
-        ? repoSettings.progressComments
-        : inputs.progress_comments === "enabled",
+    // live task-list updates in the progress comment. defaults to true.
+    progressComments: repoSettings.progressComments,
   };
 }
 

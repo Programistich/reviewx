@@ -4,7 +4,7 @@ author: "programistich"
 
 inputs:
   prompt:
-    description: "Prompt to send to the agent (string or JSON payload)"
+    description: "Prompt to send to the agent (plain text, or the JSON payload the ReviewX server dispatches)"
     required: false
   prompt_file:
     description: "Path to a file (relative to GITHUB_WORKSPACE) whose contents are used as the prompt. Set exactly one of prompt or prompt_file."
@@ -13,10 +13,22 @@ inputs:
     description: "Maximum run duration (e.g., 10m, 1h30m). Default: 1h"
     required: false
   model:
-    description: "Model to use — a curated slug (e.g. anthropic/claude-opus) or a raw models.dev specifier (e.g. google/gemini-3.1-flash-lite). Overrides repo settings."
+    description: "Model to use — a curated slug (e.g. anthropic/claude-opus) or a raw models.dev specifier (e.g. google/gemini-3.1-flash-lite). Empty picks a model from the keys available."
     required: false
   effort:
-    description: "Reasoning effort: low, medium, high, xhigh, max, or a position on [0,1]. Lands on the running model's own range, rounding down. Overrides repo settings."
+    description: "Reasoning effort: low, medium, high, xhigh, max, or a position on [0,1]. Lands on the running model's own range, rounding down."
+    required: false
+  base_instructions:
+    description: "Standing instructions applied to every run, below the task in precedence. Pass `${{ vars.REVIEWX_BASE_INSTRUCTIONS }}` to manage them as a GitHub Variable."
+    required: false
+  review_instructions:
+    description: "Extra instructions for the Review and IncrementalReview modes (what to focus on, language, severity policy). Pass `${{ vars.REVIEWX_REVIEW_INSTRUCTIONS }}`."
+    required: false
+  fix_instructions:
+    description: "Extra instructions for the Fix mode (addressing review comments)."
+    required: false
+  task_instructions:
+    description: "Extra instructions for the Task mode (free-form @reviewx requests)."
     required: false
   debug:
     description: "Set to `enabled` to raise this run's logging — makes `log.debug` output visible and puts the opencode server at INFO, which is the only way to see a run that fails with an empty log. Equivalent to the `--debug` run flag."
@@ -25,16 +37,40 @@ inputs:
     description: "Working directory for the agent (defaults to GITHUB_WORKSPACE)"
     required: false
   push:
-    description: "Git push permission: disabled (read-only), restricted (push feature branches only — blocks pushes to the default branch, branch deletion, and tag pushes), or enabled (full push access). Default: enabled"
+    description: "Git push permission: disabled (read-only), restricted (push feature branches only — blocks pushes to the default branch, branch deletion, and tag pushes), or enabled (full push access). Default: restricted"
     required: false
   shell:
-    description: "Shell permission: disabled, restricted (filters secrets from env vars), or enabled. Can only make the repository's console setting (restricted by default) stricter."
+    description: "Shell permission: disabled, restricted (filters secrets from env vars), or enabled. Non-collaborators always get at most restricted. Default: restricted"
+    required: false
+  pr_approve:
+    description: "Allow the agent to submit approving reviews: enabled or disabled. Default: disabled"
+    required: false
+  review_drafts:
+    description: "Re-review draft PRs in the post-run safety net: enabled or disabled. Default: disabled"
+    required: false
+  setup_script:
+    description: "Shell script run once after checkout, before the agent starts (install dependencies, etc.). Requires shell not disabled."
+    required: false
+  post_checkout_script:
+    description: "Shell script run after every PR checkout performed by the agent."
+    required: false
+  prepush_script:
+    description: "Shell script run before every push (tests, lint). Best-effort: a failure is reported to the agent and latched off for the run."
+    required: false
+  stop_script:
+    description: "Shell script run when the agent finishes a turn, before the run ends."
     required: false
   status_checks:
-    description: "DEPRECATED — both checks are now repository settings, editable in the Pullfrog console (Automations → Review PRs). Set them there and drop this input. It keeps working on v0 either way: it can only turn a check on, and silently ignoring it would strip a required check from anyone still relying on it."
+    description: "Post the `reviewx` run-lifecycle check-run on the PR head: enabled (default) or disabled."
+    required: false
+  approval_check:
+    description: "Post the `reviewx-approval` verdict check-run (a merge gate for branch protection): enabled or disabled. Default: disabled"
     required: false
   progress_comments:
-    description: "Suppress the progress comment's live task-list updates: enabled (default) or disabled. It does NOT stop the initial `Leaping into action...` comment — the server posts that before the run starts and never reads workflow YAML, so only the repository setting suppresses it (Pullfrog console → Comments → Progress comments), which is what to use if you want no progress comment at all. Final reviews, result comments, and failure reports are unaffected."
+    description: "Live task-list updates in the progress comment: enabled (default) or disabled. Final reviews, result comments and failure reports are unaffected."
+    required: false
+  env_allowlist:
+    description: "Comma-separated environment variable names the agent's shell may see in restricted mode, on top of the built-in safe set."
     required: false
   output_schema:
     description: "JSON Schema (draft-07) for structured output validation. When provided, the action output becomes required and must conform to this schema."

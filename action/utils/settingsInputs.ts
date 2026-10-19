@@ -55,6 +55,7 @@ export function resolveSettingsFromInputs(): RepoSettings {
     reviewDrafts: flag("review_drafts", defaultSettings.reviewDrafts),
     progressComments: flag("progress_comments", defaultSettings.progressComments),
     statusChecks: flag("status_checks", defaultSettings.statusChecks),
+    approvalCheck: flag("approval_check", defaultSettings.approvalCheck),
     baseInstructions: text("base_instructions"),
     modeInstructions,
     envAllowlist: text("env_allowlist"),
