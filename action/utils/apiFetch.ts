@@ -1,6 +1,5 @@
 import { getApiUrl } from "./apiUrl.ts";
 import { log } from "./cli.ts";
-import { vercelBypassSecretFor } from "./vercelBypass.ts";
 
 type ApiFetchOptions = {
   path: string;
@@ -11,32 +10,15 @@ type ApiFetchOptions = {
 };
 
 /**
- * fetch wrapper for hitting the Pullfrog API with Vercel deployment protection bypass.
- *
- * adds the bypass secret as BOTH a query parameter and a header for maximum reliability.
- * the server-side forwarding code uses query params, and the Vercel docs say both work,
- * so we do both as belt-and-suspenders.
- *
- * the query param approach is the primary bypass mechanism (matches server-side forwarding).
- * the header is added as a fallback.
+ * fetch wrapper for the ReviewX API.
  */
 export async function apiFetch(options: ApiFetchOptions): Promise<Response> {
   const apiUrl = getApiUrl();
   const url = new URL(options.path, apiUrl);
 
-  const bypassSecret = vercelBypassSecretFor(url);
-  if (bypassSecret) {
-    url.searchParams.set("x-vercel-protection-bypass", bypassSecret);
-  }
-
   const headers: Record<string, string> = {
     ...options.headers,
   };
-
-  // also add as header for belt-and-suspenders
-  if (bypassSecret) {
-    headers["x-vercel-protection-bypass"] = bypassSecret;
-  }
 
   // never send Content-Type on body-less requests. empirically, Vercel's
   // Next.js lambda adapter (Next 16.1.x) throws `SyntaxError: Unexpected

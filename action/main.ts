@@ -59,7 +59,6 @@ import {
   captureBaselineModels,
   getAuthorizedModels,
 } from "./utils/openCodeModels.ts";
-import { applyOverrides } from "./utils/overrides.ts";
 import {
   type ProvisionablePackageManager,
   packageManagerBinDir,
@@ -113,25 +112,6 @@ export interface MainResult {
 export async function main(): Promise<MainResult> {
   // normalize env var names to uppercase (handles case-insensitive workflow files)
   normalizeEnv();
-
-  // apply caller-supplied env overrides — JSON object forwarded as the
-  // UNSAFE_OVERRIDES env var (NOT a `with:` input). gated by `actions:write`
-  // on the repo and refuses integrity-critical names; see utils/overrides.ts
-  // for the deny-list and wiki/e2e-testing.md for usage + threat model.
-  // the `unsafe` prefix is intentional: GH echoes the env-block value in the
-  // step-header log, so the raw JSON is visible to anyone with `actions:read`.
-  const overridesRaw = process.env.UNSAFE_OVERRIDES ?? "";
-  if (overridesRaw.trim()) {
-    const result = applyOverrides({ raw: overridesRaw, env: process.env });
-    if (result.applied.length > 0) {
-      log.info(`» applied ${result.applied.length} env override(s): ${result.applied.join(", ")}`);
-    }
-    if (result.denied.length > 0) {
-      log.warning(
-        `» refused to override ${result.denied.length} protected env var(s): ${result.denied.join(", ")}`
-      );
-    }
-  }
 
   // write usage summary on SIGINT/SIGTERM so the worker can read it after sandbox.exec
   const usageSummaryPath = process.env.PULLFROG_USAGE_SUMMARY_PATH;

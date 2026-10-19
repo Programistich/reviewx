@@ -8,7 +8,6 @@
     "test:catalog": "vitest run --config vitest.main.config.ts",
     "typecheck": "tsc --noEmit",
     "build": "node esbuild.config.js",
-    "check:entrypoints": "nub scripts/check-entrypoint-imports.ts",
     "runtest": "nub test/run.ts"
   },
   "exports": {

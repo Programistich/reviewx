@@ -3,14 +3,6 @@
  * Re-exports shared types, values, and utilities needed by the Next.js app.
  */
 
-export { CLI_CONTRACT_HEADER, CLI_CONTRACT_VERSION, CLI_UPGRADE_MESSAGE } from "../cliContract.ts";
-export type { ConfigField, ConfigScope, ConfigValue } from "../configuration.ts";
-export {
-  configEntrySchema,
-  configFields,
-  configResponseSchema,
-  configValueSchema,
-} from "../configuration.ts";
 export type {
   AuthorPermission,
   AutoTier,
