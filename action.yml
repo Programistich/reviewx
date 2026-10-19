@@ -1,6 +1,6 @@
-name: "Pullfrog Action"
-description: "Execute coding agents with a prompt"
-author: "Pullfrog"
+name: "ReviewX"
+description: "AI code review agent for pull requests, running in your GitHub Actions with your own model keys"
+author: "programistich"
 
 inputs:
   prompt:
@@ -50,13 +50,8 @@ outputs:
 
 runs:
   using: "node24"
-  main: "entry.ts"
-  # Always-run post step persists best-effort state that must survive
-  # cancellation, timeouts, and unhandled errors in the main step. Today's
-  # only consumer: Codex auth.json refresh write-back. See wiki/codex-auth.md.
-  post: "entryPost.ts"
-  post-if: "always()"
+  main: "dist/index.mjs"
 
 branding:
-  icon: "code"
-  color: "green"
+  icon: "eye"
+  color: "purple"

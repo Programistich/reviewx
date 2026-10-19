@@ -44,7 +44,6 @@ examples
 
 # Temporary directory for cloned repos
 .temp/
-dist
 
 .pnpm-store/
 

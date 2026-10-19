@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "outDir": "./dist",
+    "outDir": "../dist",
     "module": "NodeNext",
     "target": "ESNext",
     "moduleResolution": "NodeNext",
@@ -22,5 +22,5 @@
     "useUnknownInCatchVariables": true,
     "noEmit": true
   },
-  "exclude": ["dist"]
+  "exclude": ["../dist"]
 }

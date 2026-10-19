@@ -3,10 +3,8 @@
 import { build } from "esbuild";
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 
-const pkg = JSON.parse(readFileSync("package.json", "utf-8"));
-
-rmSync("./dist", { recursive: true, force: true });
-mkdirSync("./dist", { recursive: true });
+rmSync("../dist", { recursive: true, force: true });
+mkdirSync("../dist", { recursive: true });
 
 // Plugin to strip shebangs from output files
 /**
@@ -64,41 +62,15 @@ const sharedConfig = {
   drop: [],
 };
 
-// Build the CLI bundle (published to npm, used by npx)
 await build({
   ...sharedConfig,
-  entryPoints: ["./cli.ts"],
-  outfile: "./dist/cli.mjs",
-  target: "node20",
+  entryPoints: ["./gha.ts"],
+  outfile: "../dist/index.mjs",
   plugins: [stripShebangPlugin],
-  define: {
-    "process.env.CLI_VERSION": JSON.stringify(pkg.version),
-  },
 });
 
-// Build ESM library entrypoints for programmatic imports
-await build({
-  ...sharedConfig,
-  entryPoints: ["./index.ts"],
-  outfile: "./dist/index.js",
-  target: "node20",
-});
-
-await build({
-  ...sharedConfig,
-  entryPoints: ["./internal/index.ts"],
-  outfile: "./dist/internal.js",
-  target: "node20",
-});
-
-// prepend shebang after strip (esbuild banner can't guarantee line 1 placement)
-const cliPath = "./dist/cli.mjs";
-const cliContent = readFileSync(cliPath, "utf8");
-writeFileSync(cliPath, `#!/usr/bin/env node\n${cliContent}`);
-
-// copy bundled SKILL.md files into dist/ so the npm-published runtime can read
-// them via readFileSync. source-mode runs (PULLFROG_FORCE_LOCAL_CLI=1) read
-// directly from action/skills/ instead. see utils/skills.ts.
-cpSync("./skills", "./dist/skills", { recursive: true });
+// bundled SKILL.md files are read at runtime via readFileSync relative to the
+// bundle. see utils/skills.ts.
+cpSync("./skills", "../dist/skills", { recursive: true });
 
 console.log("» build completed successfully");
