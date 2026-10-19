@@ -364,8 +364,7 @@ describe("formatApiKeyErrorSummary", () => {
     });
     expect(msg).toContain("no API key found");
     expect(msg).toContain("https://github.com/acme/repo/settings/secrets/actions");
-    expect(msg).toContain("/console/acme/repo");
-    expect(msg).toContain("https://discord.gg/8y96raFg8e");
+    expect(msg).toContain("programistich/reviewx#model-keys");
   });
 
   it("renders the invalid-key body for any other auth error", () => {
@@ -376,12 +375,7 @@ describe("formatApiKeyErrorSummary", () => {
     });
     expect(msg).toContain("rejected");
     expect(msg).toContain("https://github.com/acme/repo/settings/secrets/actions");
-    // the key may live in ReviewX's store instead, and only one of the two CTAs
-    // can be right — so both have to be offered. assert the LABEL: the sibling
-    // `Model settings` link is `/console/acme/repo`, so a bare `/console/acme`
-    // substring passes against copy that never gained the store link at all.
-    expect(msg).toContain("[ReviewX secrets →](");
-    expect(msg).toContain("https://discord.gg/8y96raFg8e");
+    expect(msg).toContain("[Repo secrets →](");
   });
 
   // see #931 — OAuth-connection credentials aren't repo secrets, so the
@@ -393,7 +387,6 @@ describe("formatApiKeyErrorSummary", () => {
       raw: "» ReviewX session error: Token refresh failed: 401",
     });
     expect(msg).toContain("OAuth credential has expired");
-    expect(msg).toContain("reviewx auth");
     expect(msg).not.toContain("settings/secrets/actions");
     // #1072 — this shape rendered the rotate-your-repo-secret copy before
     const claudeCli = formatApiKeyErrorSummary({
