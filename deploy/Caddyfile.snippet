@@ -1,0 +1,5 @@
+# append to /root/caddy/Caddyfile on the VPS, then: docker exec caddy caddy reload --config /etc/caddy/Caddyfile
+reviewx.programistich.com {
+    encode zstd gzip
+    reverse_proxy reviewx-server:3000
+}

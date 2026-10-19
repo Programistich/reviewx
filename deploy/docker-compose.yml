@@ -1,26 +1,18 @@
+# Joins the host's shared Caddy network; the Caddy on the VPS terminates TLS
+# and proxies reviewx.programistich.com → reviewx-server:3000 (see Caddyfile.snippet).
 services:
   server:
     build:
       context: ..
       dockerfile: server/Dockerfile
+    container_name: reviewx-server
     restart: unless-stopped
     env_file: .env
     expose:
       - "3000"
+    networks:
+      - shared-proxy
 
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - server
-
-volumes:
-  caddy_data:
-  caddy_config:
+networks:
+  shared-proxy:
+    external: true

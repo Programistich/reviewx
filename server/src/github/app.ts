@@ -37,12 +37,11 @@ export interface InstallationToken {
 }
 
 export class GitHubApiError extends Error {
-  constructor(
-    public readonly status: number,
-    message: string
-  ) {
+  readonly status: number;
+  constructor(status: number, message: string) {
     super(message);
     this.name = "GitHubApiError";
+    this.status = status;
   }
 }
 
