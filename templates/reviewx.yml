@@ -1,0 +1,41 @@
+# ReviewX — AI code review for pull requests.
+# The ReviewX GitHub App dispatches this workflow with a JSON prompt; it never
+# triggers on PR events directly, so it always runs from the default branch.
+name: ReviewX
+run-name: ${{ inputs.name || github.workflow }}
+on:
+  workflow_dispatch:
+    inputs:
+      prompt:
+        type: string
+        description: Agent prompt
+      name:
+        type: string
+        description: Run name
+
+concurrency:
+  group: reviewx-${{ inputs.name || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  reviewx:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - uses: programistich/reviewx@v1
+        with:
+          prompt: ${{ inputs.prompt }}
+          model: ${{ vars.REVIEWX_MODEL }}
+          base_instructions: ${{ vars.REVIEWX_BASE_INSTRUCTIONS }}
+          review_instructions: ${{ vars.REVIEWX_REVIEW_INSTRUCTIONS }}
+        env:
+          # add the keys your agent needs; remove the ones you don't use
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}

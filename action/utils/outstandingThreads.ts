@@ -1,9 +1,9 @@
-import { isPullfrog } from "./isPullfrog.ts";
+import { isReviewx } from "./isReviewx.ts";
 
 /**
  * lightweight paginated query for the approval gate: we only need each thread's
  * resolved state and its ROOT author (oldest comment, hence `first: 1`) to count
- * outstanding Pullfrog findings. distinct from REVIEW_THREADS_QUERY, which pages
+ * outstanding ReviewX findings. distinct from REVIEW_THREADS_QUERY, which pages
  * the same connection but carries full comment bodies — the invariant must hold
  * on PRs with >100 threads, since a silent first-100 cap would let a finding
  * beyond #100 slip an approval through.
@@ -48,9 +48,9 @@ export type OutstandingThreadsCtx = {
 
 /**
  * count unresolved review threads on a PR whose root comment was authored by
- * Pullfrog's bot. this is the full set of open Pullfrog findings on the PR —
+ * ReviewX's bot. this is the full set of open ReviewX findings on the PR —
  * the basis for both the never-approve-with-outstanding-issues invariant (the
- * approval gate in create_pull_request_review) and the `pullfrog-approval`
+ * approval gate in create_pull_request_review) and the `reviewx-approval`
  * status verdict. it is a function of all open findings, NOT just the latest
  * commit's delta.
  *
@@ -60,7 +60,7 @@ export type OutstandingThreadsCtx = {
  * excluded: they belong to those reviewers to resolve. walks every page so a
  * long-lived PR with >100 threads can't hide an outstanding finding.
  */
-export async function countOutstandingPullfrogThreads(
+export async function countOutstandingReviewXThreads(
   ctx: OutstandingThreadsCtx,
   pullNumber: number
 ): Promise<number> {
@@ -77,7 +77,7 @@ export async function countOutstandingPullfrogThreads(
     for (const thread of conn?.nodes ?? []) {
       if (!thread || thread.isResolved) continue;
       const root = thread.comments?.nodes?.find((c) => c != null);
-      if (root && isPullfrog(root.author?.login)) count += 1;
+      if (root && isReviewx(root.author?.login)) count += 1;
     }
     if (!conn?.pageInfo.hasNextPage) break;
     cursor = conn.pageInfo.endCursor;

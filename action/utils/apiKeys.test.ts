@@ -121,7 +121,7 @@ describe("validateAgentApiKey — opencode", () => {
   });
 
   // `openai` is the one provider whose credential can live in
-  // `managedCredentials`, so a `pullfrog auth codex` run has no OPENAI_API_KEY
+  // `managedCredentials`, so a `reviewx auth codex` run has no OPENAI_API_KEY
   // and must not read as unservable.
   it("counts a managed credential as auth on the auto-select path", () => {
     process.env.CODEX_AUTH_JSON = '{"tokens":{}}';
@@ -275,7 +275,7 @@ describe("validateAgentApiKey — Vertex routing", () => {
 
 describe("isApiKeyAuthError", () => {
   it("matches the missing-key marker thrown by validateAgentApiKey", () => {
-    expect(isApiKeyAuthError("no API key found. Pullfrog needs ...")).toBe(true);
+    expect(isApiKeyAuthError("no API key found. ReviewX needs ...")).toBe(true);
   });
 
   it("matches Claude CLI 401 strings", () => {
@@ -298,7 +298,7 @@ describe("isApiKeyAuthError", () => {
     ).toBe(true);
     expect(
       isApiKeyAuthError(
-        "» Pullfrog result error: subtype=success, api_error_status=401, message=Failed to authenticate."
+        "» ReviewX result error: subtype=success, api_error_status=401, message=Failed to authenticate."
       )
     ).toBe(true);
   });
@@ -314,10 +314,10 @@ describe("isApiKeyAuthError", () => {
     ).toBe(true);
     expect(
       isApiKeyAuthError(
-        "» Pullfrog session error: Your authentication token has expired. Please try signing in again."
+        "» ReviewX session error: Your authentication token has expired. Please try signing in again."
       )
     ).toBe(true);
-    expect(isApiKeyAuthError("» Pullfrog session error: Token refresh failed: 401")).toBe(true);
+    expect(isApiKeyAuthError("» ReviewX session error: Token refresh failed: 401")).toBe(true);
     // #1041 server-side revocation ("been invalidated", not "expired")
     expect(
       isApiKeyAuthError(
@@ -334,7 +334,7 @@ describe("isApiKeyAuthError", () => {
     expect(isApiKeyAuthError("API Error: Header '14' has invalid value: '***'")).toBe(true);
     // #1180 OpenAI writes the copula as "is", not "has"
     expect(
-      isApiKeyAuthError("» Pullfrog session error: Provided authentication token is expired.")
+      isApiKeyAuthError("» ReviewX session error: Provided authentication token is expired.")
     ).toBe(true);
     // #1072 org-level entitlement denial carries no 401 and no auth keyword
     expect(
@@ -376,11 +376,11 @@ describe("formatApiKeyErrorSummary", () => {
     });
     expect(msg).toContain("rejected");
     expect(msg).toContain("https://github.com/acme/repo/settings/secrets/actions");
-    // the key may live in Pullfrog's store instead, and only one of the two CTAs
+    // the key may live in ReviewX's store instead, and only one of the two CTAs
     // can be right — so both have to be offered. assert the LABEL: the sibling
     // `Model settings` link is `/console/acme/repo`, so a bare `/console/acme`
     // substring passes against copy that never gained the store link at all.
-    expect(msg).toContain("[Pullfrog secrets →](");
+    expect(msg).toContain("[ReviewX secrets →](");
     expect(msg).toContain("https://discord.gg/8y96raFg8e");
   });
 
@@ -390,10 +390,10 @@ describe("formatApiKeyErrorSummary", () => {
     const msg = formatApiKeyErrorSummary({
       owner: "acme",
       name: "repo",
-      raw: "» Pullfrog session error: Token refresh failed: 401",
+      raw: "» ReviewX session error: Token refresh failed: 401",
     });
     expect(msg).toContain("OAuth credential has expired");
-    expect(msg).toContain("pullfrog auth");
+    expect(msg).toContain("reviewx auth");
     expect(msg).not.toContain("settings/secrets/actions");
     // #1072 — this shape rendered the rotate-your-repo-secret copy before
     const claudeCli = formatApiKeyErrorSummary({

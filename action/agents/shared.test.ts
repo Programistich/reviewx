@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { type AgentUsage, mergeAgentUsage } from "./shared.ts";
 
 const entry = (overrides: Partial<AgentUsage>): AgentUsage => ({
-  agent: "pullfrog",
+  agent: "reviewx",
   inputTokens: 0,
   outputTokens: 0,
   ...overrides,

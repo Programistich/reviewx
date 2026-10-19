@@ -303,7 +303,7 @@ async function installFallback(
  * `main.ts` call it BEFORE the `setup` lifecycle hook and the prep phase call it
  * again later for the cost of one `which`. That ordering is the point: a `setup`
  * hook running `bun install` used to die with `bun: command not found` 0.8s
- * before Pullfrog installed bun itself, because the pre-hook site only ever
+ * before ReviewX installed bun itself, because the pre-hook site only ever
  * asked corepack — which ignores bun and deno entirely. See #1121.
  */
 export async function provisionPackageManager(params: {

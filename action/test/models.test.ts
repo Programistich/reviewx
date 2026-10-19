@@ -40,7 +40,7 @@ describe("OpenCode Go GLM Flash effort", () => {
 // these tests validate our alias data structure without hitting external APIs.
 // network-dependent checks (models.dev / OpenRouter catalog drift, latest-model
 // snapshot) live in models-catalog.main.test.ts and run on main pushes plus
-// `pullfrog/models-bump` PRs (the bot's bump branch, gated in test.yml).
+// `reviewx/models-bump` PRs (the bot's bump branch, gated in test.yml).
 
 // models that have no OpenRouter equivalent and require BYOK.
 // add a model here ONLY when it genuinely doesn't exist on both models.dev and

@@ -5,11 +5,11 @@ import { stripExistingFooter } from "./footer.ts";
  * Used to detect whether a progress comment is still in its initial state
  * and hasn't been updated with real progress or error messages.
  *
- * Lives in `utils/` (not `mcp/`) so it can be re-exported via `pullfrog/internal`
+ * Lives in `utils/` (not `mcp/`) so it can be re-exported via `reviewx/internal`
  * without dragging the MCP server's transitive imports into the Next.js app's
  * type-check graph.
  */
-export const LEAPING_INTO_ACTION_PREFIX = "Leaping into action";
+export const LEAPING_INTO_ACTION_PREFIX = "ReviewX is working";
 
 export function isLeapingIntoActionCommentBody(body: string): boolean {
   const content = stripExistingFooter(body).trimStart();

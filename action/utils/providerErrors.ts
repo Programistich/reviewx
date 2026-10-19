@@ -92,7 +92,7 @@ const PROVIDER_ERROR_PATTERNS: ProviderErrorPattern[] = [
   // whose ChatGPT subscription was capped.
   { regex: /\bthe usage limit has been reached\b/i, label: PROVIDER_USAGE_LIMIT_LABEL },
   // the OpenRouter shapes `isRouterKeylimitExhaustedError` matches. on a Router
-  // run those mean the PULLFROG wallet is empty and `renderRunError` returns a
+  // run those mean the REVIEWX wallet is empty and `renderRunError` returns a
   // `BillingError` before ever reaching this list; on a BYOK run the very same
   // wire text means the user's OWN OpenRouter wallet is empty, and this entry is
   // what gives them the right dashboard instead of ours. see #1135.
@@ -212,7 +212,7 @@ function extractExcerpt(text: string, matchIndex: number): string {
 /**
  * OpenRouter's response when the per-run key's remaining budget can't cover
  * the agent's `max_tokens` reservation. Distinct from a generic provider error
- * because it's a Pullfrog billing concern, not an upstream outage — the user's
+ * because it's a ReviewX billing concern, not an upstream outage — the user's
  * Router wallet ran out (or the key budget was undersized at mint time and the
  * agent ran out of headroom partway through).
  *
@@ -233,7 +233,7 @@ function extractExcerpt(text: string, matchIndex: number): string {
 // `/s` (dotAll) lets `.*?` cross newlines so we still detect the error if any
 // upstream layer reformats the message onto multiple lines. Without it, a
 // single inserted `\n` would silently bypass the BillingError reclassification
-// and the user would see the generic `❌ Pullfrog failed` dump instead of the
+// and the user would see the generic `❌ ReviewX failed` dump instead of the
 // actionable top-up CTA.
 const ROUTER_KEYLIMIT_EXHAUSTED_PATTERN =
   /requires more credits.*?fewer max_tokens|requested up to \d+ tokens.*?can only afford|Key limit exceeded \(total limit\)/is;
@@ -247,7 +247,7 @@ export function isRouterKeylimitExhaustedError(text: string): boolean {
  * provider wallet is empty (DeepSeek "Insufficient Balance", Anthropic
  * "credit balance is too low", OpenCode Zen `CreditsError` /
  * `FreeUsageLimitError`, Gemini "spending cap"). Distinct from
- * `isRouterKeylimitExhaustedError` — that's Pullfrog's Router wallet, this
+ * `isRouterKeylimitExhaustedError` — that's ReviewX's Router wallet, this
  * is the user's own provider account.
  */
 export function isProviderBillingExhausted(text: string): boolean {

@@ -39,7 +39,7 @@ function renderTodoMarkdown(todos: TodoItem[]): string {
         case "cancelled":
           return `- ~~${todo.content}~~`;
         case "in_progress":
-          return `- [ ] <img src="https://uploads.pullfrog.com/Progress%20Indicator.gif"  width="11" style="visibility: visible; max-width: 100%;" />  ${todo.content}`;
+          return `- [ ] ⏳ ${todo.content}`;
         case "pending":
           return `- [ ] ${todo.content}`;
         default:

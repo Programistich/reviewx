@@ -39,7 +39,7 @@ function shellQuote(arg: string): string {
  *
  * That last property is exactly why this runs through `runSandboxed` rather
  * than spawning directly: `gh alias set x '!<shell>'` is arbitrary code
- * execution, and outside the sandbox it would reach pullfrog-managed on-disk
+ * execution, and outside the sandbox it would reach reviewx-managed on-disk
  * secrets, the runner's workflow-command files and a writable `.git` — none of
  * which the token's scope bounds. Inside it, that capability is no more than
  * the `shell` tool already grants. See wiki/agent-github-access.md.

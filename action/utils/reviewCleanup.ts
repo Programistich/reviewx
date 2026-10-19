@@ -87,7 +87,7 @@ async function dispatchFollowUpReReview(ctx: ToolContext, reviewedSha: string): 
   }
 
   const payload: WriteablePayload = {
-    "~pullfrog": true,
+    "~reviewx": true,
     version: ctx.payload.version,
     model: ctx.payload.model,
     effort: ctx.payload.effort,
@@ -121,11 +121,11 @@ async function dispatchFollowUpReReview(ctx: ToolContext, reviewedSha: string): 
 
 /**
  * derive the running workflow's filename from `GITHUB_WORKFLOW_REF`, which has the form
- * `<owner>/<repo>/.github/workflows/<filename>@<ref>` (e.g. `.../pullfrog.yaml@refs/heads/main`).
- * falls back to `pullfrog.yml` if the env var is missing or malformed (shouldn't happen in CI).
+ * `<owner>/<repo>/.github/workflows/<filename>@<ref>` (e.g. `.../reviewx.yaml@refs/heads/main`).
+ * falls back to `reviewx.yml` if the env var is missing or malformed (shouldn't happen in CI).
  */
 function getCurrentWorkflowFilename(): string {
   const ref = process.env.GITHUB_WORKFLOW_REF ?? "";
   const match = ref.match(/\/([^/]+)@/);
-  return match?.[1] ?? "pullfrog.yml";
+  return match?.[1] ?? "reviewx.yml";
 }

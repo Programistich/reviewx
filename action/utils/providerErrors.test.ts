@@ -197,7 +197,7 @@ describe("findProviderErrorMatch", () => {
   it("excerpt centers on the matched line, not the head of the buffer", () => {
     const schemaDump =
       "{".repeat(2000) +
-      '"name":"pullfrog_create_pull_request_review","description":"Submit a review..."';
+      '"name":"reviewx_create_pull_request_review","description":"Submit a review..."';
     const errorLine = "ERROR 2026-05-13 service=session error=rate_limit_exceeded retry-after=30";
     const chunk = `${schemaDump}\n${errorLine}\ncaller stack at handler.ts:42`;
 
@@ -206,7 +206,7 @@ describe("findProviderErrorMatch", () => {
     expect(match?.label).toBe("rate limited");
     expect(match?.excerpt).toContain("rate_limit_exceeded");
     expect(match?.excerpt).toContain("retry-after=30");
-    expect(match?.excerpt).not.toContain("pullfrog_create_pull_request_review");
+    expect(match?.excerpt).not.toContain("reviewx_create_pull_request_review");
   });
 
   it("includes a small surrounding-line window for stack-trace context", () => {

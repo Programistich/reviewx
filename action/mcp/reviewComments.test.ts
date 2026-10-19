@@ -19,7 +19,7 @@ function loadFixture(file: string): ReviewFixture {
 
 describe("formatReviewData", () => {
   it("formats thread blocks with TOC and correct line numbers", () => {
-    const fx = loadFixture("pullfrog-scratch-pr-49-review-3485940013.json");
+    const fx = loadFixture("reviewx-scratch-pr-49-review-3485940013.json");
     const result = formatReviewData(fx);
     expect(result).toBeDefined();
     if (!result) return;
@@ -29,7 +29,7 @@ describe("formatReviewData", () => {
   });
 
   it("formats body-only review", () => {
-    const fx = loadFixture("pullfrog-scratch-pr-64-review-3531000326.json");
+    const fx = loadFixture("reviewx-scratch-pr-64-review-3531000326.json");
     const result = formatReviewData(fx);
     expect(result).toBeDefined();
     if (!result) return;

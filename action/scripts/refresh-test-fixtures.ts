@@ -54,12 +54,12 @@ type ReviewFixture = {
 };
 
 const DIFF_TARGETS: Array<Pick<DiffFixture, "owner" | "name" | "pullNumber">> = [
-  { owner: "pullfrog", name: "test-repo", pullNumber: 1 },
+  { owner: "reviewx", name: "test-repo", pullNumber: 1 },
 ];
 
 const REVIEW_TARGETS: Array<Pick<ReviewFixture, "owner" | "name" | "pullNumber" | "reviewId">> = [
-  { owner: "pullfrog", name: "scratch", pullNumber: 49, reviewId: 3485940013 },
-  { owner: "pullfrog", name: "scratch", pullNumber: 64, reviewId: 3531000326 },
+  { owner: "reviewx", name: "scratch", pullNumber: 49, reviewId: 3485940013 },
+  { owner: "reviewx", name: "scratch", pullNumber: 64, reviewId: 3531000326 },
 ];
 
 async function getToken(): Promise<string> {

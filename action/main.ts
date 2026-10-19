@@ -22,7 +22,7 @@ import { resolveAgent, resolveModel } from "./utils/agent.ts";
 import { buildRejectedCredentialError, validateAgentApiKey } from "./utils/apiKeys.ts";
 import { resolveBody } from "./utils/body.ts";
 import { log } from "./utils/cli.ts";
-import { installCodexAuth, installXaiAuth, PULLFROG_DATA_DIR } from "./utils/codexHome.ts";
+import { installCodexAuth, installXaiAuth, REVIEWX_DATA_DIR } from "./utils/codexHome.ts";
 import { checkConfiguredCredentials } from "./utils/credentialFallback.ts";
 import { recordDiffReadFromToolUse } from "./utils/diffCoverage.ts";
 import { onExitSignal } from "./utils/exitHandler.ts";
@@ -92,7 +92,7 @@ export async function main(): Promise<MainResult> {
   normalizeEnv();
 
   // write usage summary on SIGINT/SIGTERM so the worker can read it after sandbox.exec
-  const usageSummaryPath = process.env.PULLFROG_USAGE_SUMMARY_PATH;
+  const usageSummaryPath = process.env.REVIEWX_USAGE_SUMMARY_PATH;
   if (usageSummaryPath) {
     onExitSignal(() => writeGitHubUsageSummaryToFile(usageSummaryPath));
   }
@@ -145,12 +145,12 @@ export async function main(): Promise<MainResult> {
       : null;
 
   // tmpdir hoisted out of the try block: `installFromNpmTarball` reads
-  // PULLFROG_TEMP_DIR (set as a side effect of createTempDirectory) when
+  // REVIEWX_TEMP_DIR (set as a side effect of createTempDirectory) when
   // the opencode CLI install runs below for BYOK introspection. agent +
   // mcp server setup further down also consume the same tmpdir.
   //
   // the return value is reused below rather than calling again: every call
-  // `mkdtempSync`s a NEW directory and overwrites PULLFROG_TEMP_DIR, and the
+  // `mkdtempSync`s a NEW directory and overwrites REVIEWX_TEMP_DIR, and the
   // installers key their fs cache off that variable *at call time* — so a
   // second call silently invalidated the cache and re-downloaded plus
   // re-extracted the whole opencode tarball on every run.
@@ -224,7 +224,7 @@ export async function main(): Promise<MainResult> {
 
   // probe the sandbox ONCE, here, rather than lazily inside the first
   // `spawnShell`. on an unprivileged Kubernetes/ARC runner every PID-namespace
-  // method fails, so every `pullfrog_shell` call throws — but detection used to
+  // method fails, so every `reviewx_shell` call throws — but detection used to
   // happen minutes in, the tool stayed registered, and the prompt kept telling
   // the agent it was the only sanctioned way to run anything. 192 runs / 757
   // dead tool calls in 24h, all green, with agents submitting reviews whose
@@ -237,7 +237,7 @@ export async function main(): Promise<MainResult> {
       "» shell commands are disabled for this run: this runner provides no PID-namespace isolation " +
         "(unprivileged unshare, sudo unshare and userns-nested unshare all failed). " +
         "on a self-hosted Kubernetes/ARC runner, allow user-namespace creation in the pod's seccomp " +
-        "profile — see https://docs.pullfrog.com/security#self-hosted-runners"
+        "profile — see https://github.com/programistich/reviewx#self-hosted-runners"
     );
   }
 
@@ -357,7 +357,7 @@ export async function main(): Promise<MainResult> {
     // then lockfile) and provision it by whatever route it needs. asking corepack
     // alone was the bug: it manages pnpm and yarn and ignores bun and deno, so a
     // `setup` hook running `bun install` died with `bun: command not found` 0.8s
-    // before Pullfrog installed bun itself. see #1121.
+    // before ReviewX installed bun itself. see #1121.
     const pmDetected = await detect({ cwd: process.cwd(), strategies: ["lockfile"] });
     const pmName = pmSpec?.name ?? (pmDetected?.name as ProvisionablePackageManager) ?? "npm";
     // provisioning executes code, so it is gated on shell exactly like the prep phase.
@@ -576,12 +576,12 @@ export async function main(): Promise<MainResult> {
       mcpServerUrl: mcpHttpServer.url,
       tmpdir,
       subagentDeniedTools,
-      // PULLFROG_DATA_DIR (/var/lib/pullfrog) holds codex auth.json + any
-      // future pullfrog-managed on-disk secrets. bash via MCP tmpfs-overlays
+      // REVIEWX_DATA_DIR (/var/lib/reviewx) holds codex auth.json + any
+      // future reviewx-managed on-disk secrets. bash via MCP tmpfs-overlays
       // it; agent native FS tools deny it via the same secretDenyPaths plumbing
       // used for vertex creds. see wiki/security.md "Filesystem Sandbox".
       secretDenyPaths: [
-        PULLFROG_DATA_DIR,
+        REVIEWX_DATA_DIR,
         ...(vertexCredentials ? [vertexCredentials.secretDir] : []),
       ],
       instructions,
@@ -690,7 +690,7 @@ export async function main(): Promise<MainResult> {
     // a partial edit before the crash is still worth keeping.
     if (toolContext) {
       await persistRunArtifacts(toolContext);
-      // failed/timed-out run → post `pullfrog` = failure (and `pullfrog-approval`
+      // failed/timed-out run → post `reviewx` = failure (and `reviewx-approval`
       // if a verdict landed before the crash). own best-effort guard internally.
       await reportStatusChecks(toolContext, { runSucceeded: false });
     }

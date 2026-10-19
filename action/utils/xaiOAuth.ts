@@ -2,8 +2,8 @@
  * Pure-stdlib (fetch) xAI/Grok OAuth: device-code login + refresh.
  *
  * Lives here (not in a CLI module) so the Next.js server side can import it
- * via pullfrog/internal without dragging in node:child_process. Used by:
- *   - action/commands/auth.ts   (`pullfrog auth grok` device-code login)
+ * via reviewx/internal without dragging in node:child_process. Used by:
+ *   - action/commands/auth.ts   (`reviewx auth grok` device-code login)
  *   - action/utils/codexHome.ts (materialize into opencode's auth.json)
  *   - utils/xaiSecretRotation.ts (server-side rotation at run-context)
  *
@@ -28,11 +28,11 @@ export interface XaiAuthBody {
   /**
    * ISO timestamp of an `invalid_grant` rejection. xAI rotates the refresh
    * token on every use, so a rejection is PERMANENT until the user re-runs
-   * `pullfrog auth grok`. Without the latch the server re-issues the same
+   * `reviewx auth grok`. Without the latch the server re-issues the same
    * doomed refresh on every run, each holding a Postgres row lock across an
    * external call — the failure mode measured for Codex in
    * [#1101](https://github.com/pullfrog/app/issues/1101). Cleared implicitly:
-   * `pullfrog auth grok` and `PUT /api/runtime/secret` write a fresh blob
+   * `reviewx auth grok` and `PUT /api/runtime/secret` write a fresh blob
    * without it, which re-arms rotation.
    */
   refresh_rejected_at?: string;

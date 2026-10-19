@@ -1,5 +1,5 @@
-# PULLFROG ACTION — DO NOT EDIT EXCEPT WHERE INDICATED
-name: Pullfrog
+# REVIEWX ACTION — DO NOT EDIT EXCEPT WHERE INDICATED
+name: ReviewX
 run-name: ${{ inputs.name || github.workflow }}
 on:
   workflow_dispatch:
@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 jobs:
-  pullfrog:
+  reviewx:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -26,7 +26,7 @@ jobs:
         with:
           fetch-depth: 1
       - name: Run agent
-        uses: pullfrog/pullfrog@main
+        uses: reviewx/reviewx@main
         with:
           prompt: ${{ inputs.prompt }}
         env:

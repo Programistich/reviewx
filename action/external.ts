@@ -8,25 +8,25 @@ import type { EffortPosition } from "./effort.ts";
 import type { RouterTier } from "./models.ts";
 
 // mcp name constant
-export const pullfrogMcpName = "pullfrog";
+export const reviewxMcpName = "reviewx";
 
 /** @see {@link file://./agents/shared.ts} Agent interface that uses this type */
 export type AgentId = "claude" | "codex" | "opencode";
 
 /**
  * format a tool name the way each agent's MCP client presents it to the model.
- * claude code: mcp__pullfrog__select_mode
- * codex:       pullfrog__select_mode
- * opencode:    pullfrog_select_mode
+ * claude code: mcp__reviewx__select_mode
+ * codex:       reviewx__select_mode
+ * opencode:    reviewx_select_mode
  */
 export function formatMcpToolRef(agentId: AgentId, toolName: string): string {
   switch (agentId) {
     case "claude":
-      return `mcp__${pullfrogMcpName}__${toolName}`;
+      return `mcp__${reviewxMcpName}__${toolName}`;
     case "codex":
-      return `${pullfrogMcpName}__${toolName}`;
+      return `${reviewxMcpName}__${toolName}`;
     case "opencode":
-      return `${pullfrogMcpName}_${toolName}`;
+      return `${reviewxMcpName}_${toolName}`;
     default:
       return agentId satisfies never;
   }
@@ -45,8 +45,8 @@ export function formatMcpToolRef(agentId: AgentId, toolName: string): string {
 export function extractMcpToolRefs(agentId: AgentId, text: string): string[] {
   const prefix = formatMcpToolRef(agentId, "");
   const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  // the prefix must start a token. without this, opencode's `pullfrog_` prefix
-  // matches INSIDE a claude-style `mcp__pullfrog__shell` ref and captures
+  // the prefix must start a token. without this, opencode's `reviewx_` prefix
+  // matches INSIDE a claude-style `mcp__reviewx__shell` ref and captures
   // `_shell`, which is never a registered name — every run on a repo whose
   // prompt carried a claude-style ref died on the check below.
   return [...text.matchAll(new RegExp(`(?<![A-Za-z0-9_])${escaped}([a-z0-9_]+)`, "g"))].map(
@@ -248,7 +248,7 @@ interface PullRequestReviewSubmittedEvent extends BasePayloadEvent {
   branch: string;
   /**
    * How far past the dispatching review this run may read: `all` on a
-   * Pullfrog-authored PR, `mentions` when only `@pullfrog`-mentioning threads
+   * ReviewX-authored PR, `mentions` when only `@reviewx`-mentioning threads
    * are in scope. The server already computes this to decide whether to
    * dispatch; forwarding it is what lets `get_review_comments` pick up the
    * comments that land while the run is working. Optional so a payload from an
@@ -380,7 +380,7 @@ export type PayloadEvent =
 
 // writeable payload type for building payloads
 export interface WriteablePayload {
-  "~pullfrog": true;
+  "~reviewx": true;
   /** semantic version of the payload to ensure compatibility */
   version: string;
   /** provider/model slug (e.g. "anthropic/claude-opus") */
@@ -395,7 +395,7 @@ export interface WriteablePayload {
    * may do, so it carries no access/permission consequence.
    */
   debug?: boolean | undefined;
-  /** the user's actual request (body if @pullfrog tagged) */
+  /** the user's actual request (body if @reviewx tagged) */
   prompt: string;
   /** github username of the human who triggered this workflow run */
   triggerer?: string | undefined;
@@ -410,7 +410,7 @@ export interface WriteablePayload {
   eventInstructions?: string | undefined;
   /**
    * system-injected note about prior superseded runs (e.g. when the
-   * triggering @pullfrog comment is edited). rendered alongside the user's
+   * triggering @reviewx comment is edited). rendered alongside the user's
    * prompt rather than via eventInstructions so it survives user-prompt
    * precedence.
    */
@@ -424,7 +424,7 @@ export interface WriteablePayload {
   /** pre-created progress comment (ID + type) for updating status */
   progressComment?: { id: string; type: "issue" | "review" } | undefined;
   /**
-   * pre-created `pullfrog` check-run, seeded `in_progress` by the server at dispatch so
+   * pre-created `reviewx` check-run, seeded `in_progress` by the server at dispatch so
    * the PR's checks list shows the run before the GHA runner boots. the action PATCHes
    * it to a terminal conclusion at run end. see `action/utils/runStatusCheck.ts`.
    */

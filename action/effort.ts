@@ -36,7 +36,7 @@ export type EffortPosition = number;
 export const DEFAULT_EFFORT_POSITION: EffortPosition = 0.5;
 
 /**
- * the rung a Pullfrog-subsidised OSS run is pinned to, whatever the repo or a
+ * the rung a ReviewX-subsidised OSS run is pinned to, whatever the repo or a
  * per-kind-of-work row has stored — see `ossEffortFloor`, which spends it, and
  * the console's Model card, which stops offering the control because of it.
  *

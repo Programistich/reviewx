@@ -312,15 +312,15 @@ async function runTestForAgent(ctx: RunContext): Promise<ValidationResult> {
     }
   }
 
-  env.PULLFROG_AGENT = ctx.agent;
+  env.REVIEWX_AGENT = ctx.agent;
 
-  // override DB model to avoid mismatch when PULLFROG_AGENT forces a specific agent
+  // override DB model to avoid mismatch when REVIEWX_AGENT forces a specific agent
   // (DB model may belong to a different provider than the forced agent supports).
-  // precedence: testConfig.env > process.env.PULLFROG_MODEL > per-agent default.
+  // precedence: testConfig.env > process.env.REVIEWX_MODEL > per-agent default.
   // the process.env pass-through lets CI (models-live matrix) pin an alias per job.
-  if (!Object.hasOwn(env, "PULLFROG_MODEL")) {
-    if (process.env.PULLFROG_MODEL) {
-      env.PULLFROG_MODEL = process.env.PULLFROG_MODEL;
+  if (!Object.hasOwn(env, "REVIEWX_MODEL")) {
+    if (process.env.REVIEWX_MODEL) {
+      env.REVIEWX_MODEL = process.env.REVIEWX_MODEL;
     } else {
       const defaultModels: Record<string, string> = {
         claude: "anthropic/claude-sonnet-4-6",
@@ -328,18 +328,18 @@ async function runTestForAgent(ctx: RunContext): Promise<ValidationResult> {
       };
       const model = defaultModels[ctx.agent];
       if (model) {
-        env.PULLFROG_MODEL = model;
+        env.REVIEWX_MODEL = model;
       }
     }
   }
 
-  if (!Object.hasOwn(env, "PULLFROG_MCP_PORT")) {
-    env.PULLFROG_MCP_PORT = String(allocateMcpPort());
+  if (!Object.hasOwn(env, "REVIEWX_MCP_PORT")) {
+    env.REVIEWX_MCP_PORT = String(allocateMcpPort());
   }
 
   // pass repo setup commands to play.ts for pre-agent execution
   if (testConfig.repoSetup) {
-    env.PULLFROG_TEST_REPO_SETUP = testConfig.repoSetup;
+    env.REVIEWX_TEST_REPO_SETUP = testConfig.repoSetup;
   }
 
   // build file-based env vars for MCP servers that don't inherit parent env
@@ -362,7 +362,7 @@ async function runTestForAgent(ctx: RunContext): Promise<ValidationResult> {
 
     // allocate a fresh port on retries (previous server is gone)
     if (attempt > 0) {
-      env.PULLFROG_MCP_PORT = String(allocateMcpPort());
+      env.REVIEWX_MCP_PORT = String(allocateMcpPort());
     }
 
     const result = await runAgentStreaming({

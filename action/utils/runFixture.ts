@@ -24,7 +24,7 @@ export async function run(inputsOrPrompt: Inputs | string): Promise<AgentResult>
   process.env.GIT_CONFIG_GLOBAL = devNull;
   process.env.GIT_CONFIG_SYSTEM = devNull;
 
-  const tempParent = await mkdtemp(join(tmpdir(), "pullfrog-play-"));
+  const tempParent = await mkdtemp(join(tmpdir(), "reviewx-play-"));
   const tempDir = join(tempParent, "repo");
   const originalCwd = process.cwd();
 
@@ -37,12 +37,12 @@ export async function run(inputsOrPrompt: Inputs | string): Promise<AgentResult>
     // into the repo. Starting here from inside the repo hid a fatal bug: a
     // `git diff` added before that chdir passed every local test and then failed
     // 100% of production runs with "Not a git repository" (0.1.54).
-    process.chdir(await mkdtemp(join(tmpdir(), "pullfrog-bootstrap-")));
+    process.chdir(await mkdtemp(join(tmpdir(), "reviewx-bootstrap-")));
 
     // optional pre-agent setup (e.g. seed symlinks for adversarial fixtures).
-    if (process.env.PULLFROG_TEST_REPO_SETUP) {
+    if (process.env.REVIEWX_TEST_REPO_SETUP) {
       log.info("» running repo setup commands...");
-      execSync(process.env.PULLFROG_TEST_REPO_SETUP, { cwd: tempDir, stdio: "pipe" });
+      execSync(process.env.REVIEWX_TEST_REPO_SETUP, { cwd: tempDir, stdio: "pipe" });
     }
 
     // tell main() to use the cloned tempDir instead of the GHA workspace path.

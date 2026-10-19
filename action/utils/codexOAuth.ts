@@ -2,7 +2,7 @@
  * Pure-stdlib (fetch) Codex OAuth refresh.
  *
  * Lives here (not in codexAuth.ts) so the Next.js server side can import it
- * via pullfrog/internal without dragging in node:child_process / spawn /
+ * via reviewx/internal without dragging in node:child_process / spawn /
  * mkdtemp from the rest of codexAuth.ts. Used by:
  *   - action/utils/codexAuth.ts (re-exports refreshCodexAuthBody)
  *   - utils/codexSecretRotation.ts (server-side maybeRotate at run-context)
@@ -12,7 +12,7 @@
 
 // `decodeJwtExpMs` + `OAuthInvalidGrantError` moved to ./oauthShared.ts when
 // the Grok chain landed — both providers need them. re-exported so importers
-// (pullfrog/internal, codexHome, codexSecretRotation) keep working.
+// (reviewx/internal, codexHome, codexSecretRotation) keep working.
 import { decodeJwtExpMs, OAuthInvalidGrantError, parseOAuthErrorBody } from "./oauthShared.ts";
 
 export { decodeJwtExpMs, OAuthInvalidGrantError };
@@ -32,7 +32,7 @@ export interface CodexAuthBody {
    * token on every use, so such a rejection is PERMANENT — without a latch the
    * server re-issued the identical doomed refresh on every run (455 futile
    * round trips in 7 days, one per run, each holding a Postgres row lock across
-   * a 10s external call). Cleared implicitly: `pullfrog auth codex` and
+   * a 10s external call). Cleared implicitly: `reviewx auth codex` and
    * `PUT /api/runtime/secret` write a fresh blob without it, which re-arms
    * rotation. Never reaches `auth.json` — `installCodexAuth` builds that file
    * from explicit fields. See [#1101](https://github.com/pullfrog/app/issues/1101).

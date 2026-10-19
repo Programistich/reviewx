@@ -1,6 +1,6 @@
 // changes to mode definitions should be reflected in docs/modes.mdx
 import { REVIEWER_AGENT_NAME } from "./agents/reviewer.ts";
-import { type AgentId, formatMcpToolRef, pullfrogMcpName } from "./external.ts";
+import { type AgentId, formatMcpToolRef, reviewxMcpName } from "./external.ts";
 
 export interface Mode {
   name: string;
@@ -13,7 +13,7 @@ export interface Mode {
 // Default user-facing summary format embedded in BOTH Review and
 // IncrementalReview review bodies. The two modes share the preamble +
 // cross-cutting shape; the only difference is scope (full PR for
-// Review vs delta against the prior pullfrog review for IncrementalReview).
+// Review vs delta against the prior reviewx review for IncrementalReview).
 // Distinct from the agent-internal snapshot (action/utils/prSummary.ts) which
 // has its own stable scaffold and is never shaped by user instructions — see
 // selectMode.ts for the firewall.
@@ -21,7 +21,7 @@ const PR_SUMMARY_FORMAT = `### Default format
 
 The body has at most two parts, in this order:
 
-1. **Reviewed changes preamble** — a bolded \`**Reviewed changes**\` lead-in with one sentence on what was reviewed in this run (for \`IncrementalReview\`: what changed since the prior pullfrog review), then a bullet list of the substantive changes — short bolded title, one sentence each. A reviewer should understand the full reviewed scope from this list alone. Close the preamble with the metadata comment below.
+1. **Reviewed changes preamble** — a bolded \`**Reviewed changes**\` lead-in with one sentence on what was reviewed in this run (for \`IncrementalReview\`: what changed since the prior reviewx review), then a bullet list of the substantive changes — short bolded title, one sentence each. A reviewer should understand the full reviewed scope from this list alone. Close the preamble with the metadata comment below.
 2. **Cross-cutting issue sections** (zero or more) — one \`### {emoji} {what's wrong, not what to do}\` heading per concern.
 
 **Inline vs. body.** Concerns that anchor to a specific line go inline (the \`comments\` parameter), even when their implications are broad. Body \`### \` sections are reserved for concerns that have **no line to anchor to** — *absence* (something the diff should have done but didn't), *sequencing* (rollout / deletion / migration order), *design decisions only the human can make*, or *scope questions the diff raises but doesn't address*. With no non-anchorable concerns, the body is just the preamble + metadata.
@@ -34,22 +34,22 @@ The body has at most two parts, in this order:
 
 ## Metadata comment
 
-Fill every field from the \`checkout_pr\` response — never count files or commits by hand. For \`IncrementalReview\`, fill \`Prior pullfrog review\` from \`list_pull_request_reviews\`.
+Fill every field from the \`checkout_pr\` response — never count files or commits by hand. For \`IncrementalReview\`, fill \`Prior reviewx review\` from \`list_pull_request_reviews\`.
 
 \`\`\`
 <!--
-Pullfrog review metadata. These findings were written against {head_sha_short};
+ReviewX review metadata. These findings were written against {head_sha_short};
 if commits have landed on {head_ref} since, treat every specific bug, file, or
 line callout as POTENTIALLY STALE and re-diff before acting on it.
 
-- Mode: Review (initial)   or   IncrementalReview (delta against prior pullfrog review)
+- Mode: Review (initial)   or   IncrementalReview (delta against prior reviewx review)
 - Files reviewed: {file_count}
 - Commits reviewed: {commit_count}
 - Base: {base_ref} ({base_sha_short})
 - Head: {head_ref} ({head_sha_short})
 - Reviewed commits:
   - {sha_short} — {commit_subject}
-- Prior pullfrog review: none   or   {prior_sha_short} ({prior_review_html_url})
+- Prior reviewx review: none   or   {prior_sha_short} ({prior_review_html_url})
 -->
 \`\`\`
 
@@ -103,7 +103,7 @@ export function computeModes(agentId: AgentId, signedCommits = false): Mode[] {
 
 3. **setup**: checkout or create the branch:
    - **PR event, modifying the existing PR**: call \`${t("checkout_pr")}\`
-   - **new branch**: use \`${t("git")}\` to create a branch (\`git checkout -b pullfrog/branch-name\`)
+   - **new branch**: use \`${t("git")}\` to create a branch (\`git checkout -b reviewx/branch-name\`)
 
 4. **build**: implement changes using your native file and shell tools:
    - follow the plan (if you ran a plan phase)
@@ -142,7 +142,7 @@ For simple, well-defined tasks, skip the plan phase and go straight to build.`,
 3. Fetch review comments via \`${t("get_review_comments")}\` and read the full conversation in each relevant thread.
 
 4. For each thread:
-   - **check intent first**: questions, explanations, and disagreement call for a reply, not a code change. Change code only when explicitly requested. Automatic review feedback on Pullfrog-authored PRs (\`address_scope: all\`) remains actionable without a separate request; later replies can narrow or withdraw that permission.
+   - **check intent first**: questions, explanations, and disagreement call for a reply, not a code change. Change code only when explicitly requested. Automatic review feedback on ReviewX-authored PRs (\`address_scope: all\`) remains actionable without a separate request; later replies can narrow or withdraw that permission.
    - under \`address_scope: mentions\`, unmentioned threads are context only unless the user's review-body request explicitly includes them
    - **verify the finding yourself** against the actual code before deciding whether to apply — every comment (human or agent) is a hypothesis, not a directive. agent reviewers especially are fallible.
    - keep requested changes **sound, minimal, and elegant**. Reject defensive checks for impossible cases, single-use abstractions, redundant comments, and tautological tests rather than mechanically applying reviewer suggestions.
@@ -156,7 +156,7 @@ For simple, well-defined tasks, skip the plan phase and go straight to build.`,
 6. Finalize:
    - **only if code changed**, ${finalizeStep} (same push/prepush guidance as Build mode in *SYSTEM*). If push/commit fails, report the exact error and STOP without claiming a fix or resolving its threads.
    - reply ONCE per relevant thread via \`${t("reply_to_review_comment")}\`, including when no code changed. The \`comment_id\` is the root comment's numeric \`id=\`, NOT the \`thread=\` value from \`${t("get_review_comments")}\`. The runtime dedupes identical bodies within a session.
-   - resolve a thread via \`${t("resolve_review_thread")}\` (using \`thread=\` as \`thread_id\`) only after its requested fix is fully on the remote, the user explicitly asks to resolve it, or it is a Pullfrog finding you agree to withdraw. Leave other discussion-only replies, partial fixes, and disagreements open.
+   - resolve a thread via \`${t("resolve_review_thread")}\` (using \`thread=\` as \`thread_id\`) only after its requested fix is fully on the remote, the user explicitly asks to resolve it, or it is a ReviewX finding you agree to withdraw. Leave other discussion-only replies, partial fixes, and disagreements open.
    - call \`${t("report_progress")}\` with a brief summary. If your last \`${t("get_review_comments")}\` turned up threads you did not address, name them there — a review arriving this late is suppressed as a duplicate and nothing else will pick it up.`,
     },
     // Review and IncrementalReview route the minimum reviewfrog specialists
@@ -200,7 +200,7 @@ For simple, well-defined tasks, skip the plan phase and go straight to build.`,
 5. **dispatch specialists (only if step 4 found unresolved questions)**: for 2+ questions, emit every Task tool_use block **IN A SINGLE ASSISTANT TURN** before reading any result, so the investigations run in parallel rather than serially. your own \`read\` / \`grep\` / \`webfetch\` calls can ride in that same turn at zero extra wall time.
 
    if a specialist errors out, times out, or returns nothing usable, retry it once. if it still fails, resolve the question yourself; if it remains disposition-changing and unresolved, surface the limitation and do not approve. each dispatch carries:
-   - **the absolute \`diffPath\` (and \`incrementalDiffPath\` if available) from step 2's \`${t("checkout_pr")}\` return, named verbatim in the dispatch prompt** (e.g. \`diffPath: /tmp/pullfrog-XXXX/pr-NNN-SHA.diff\`). the reviewer's baked-in system prompt selects its FIRST action on this token — paraphrasing ("review the diff", "look at this PR") sends it down a \`git diff origin/<base>\` fallback that fails on shallow GHA checkouts. it \`read\`s those files for scope and must NOT re-derive the diff itself; reading and codebase exploration are still its job.
+   - **the absolute \`diffPath\` (and \`incrementalDiffPath\` if available) from step 2's \`${t("checkout_pr")}\` return, named verbatim in the dispatch prompt** (e.g. \`diffPath: /tmp/reviewx-XXXX/pr-NNN-SHA.diff\`). the reviewer's baked-in system prompt selects its FIRST action on this token — paraphrasing ("review the diff", "look at this PR") sends it down a \`git diff origin/<base>\` fallback that fails on shallow GHA checkouts. it \`read\`s those files for scope and must NOT re-derive the diff itself; reading and codebase exploration are still its job.
    - **exactly one falsifiable question with explicit scope boundaries** — ask for evidence that supports or refutes it, never a broad "review for X, Y, and Z" prompt.
    - **a Task \`description\` set to a short hypothesis label** (e.g. \`"webhook-replay"\`, \`"billing-rounding"\`) — the harness reads this field to label the subagent's log lines so parallel runs can be told apart. without it, every subagent shows up as \`subagent#N\`.
    - if the question touches third-party API, SDK, or framework contracts, instruct the subagent to verify load-bearing claims via web search and quote source URLs rather than trust training data. action runs are non-interactive — nobody is in the loop to catch "I'm pretty sure Stripe does X."
@@ -242,7 +242,7 @@ ${PR_SUMMARY_FORMAT}`,
     },
     // IncrementalReview shares Review's minimum hypothesis-covering specialist
     // routing and body format, scoped to the incremental delta against the
-    // prior Pullfrog review. The "issues must be NEW since the last Pullfrog
+    // prior ReviewX review. The "issues must be NEW since the last ReviewX
     // review" filter lives at aggregation time, NOT in the subagent
     // prompt — pushing the filter into subagents matches the canonical anneal
     // anti-pattern of "list known pre-existing failures — don't flag these"
@@ -261,15 +261,15 @@ ${PR_SUMMARY_FORMAT}`,
 
 2. **checkout**: call \`${t("checkout_pr")}\` — this returns PR metadata, \`diffPath\` (full diff), \`incrementalDiffPath\` (changes since last reviewed version, if available), and a supplemental \`impactPath\` when change-impact extraction is enabled.
 
-3. **incremental scope**: if \`incrementalDiffPath\` is present, read it FIRST to see what changed since the last review. this is a range-diff that isolates the net changes, filtering out base branch noise. then read the authoritative full diff end-to-end, beginning with the TOC and using its line ranges as your coverage checklist. if no incremental diff is present, start with the full-diff TOC, determine what changed since Pullfrog's most recent review, and complete the raw-diff read. only after establishing that authoritative scope and completing raw-diff coverage, use \`impactPath\` as an explicitly incomplete list of reference leads; it never replaces raw-diff reading or establishes coverage.
+3. **incremental scope**: if \`incrementalDiffPath\` is present, read it FIRST to see what changed since the last review. this is a range-diff that isolates the net changes, filtering out base branch noise. then read the authoritative full diff end-to-end, beginning with the TOC and using its line ranges as your coverage checklist. if no incremental diff is present, start with the full-diff TOC, determine what changed since ReviewX's most recent review, and complete the raw-diff read. only after establishing that authoritative scope and completing raw-diff coverage, use \`impactPath\` as an explicitly incomplete list of reference leads; it never replaces raw-diff reading or establishes coverage.
 
-4. **prior feedback — read AND retire it**: fetch previous reviews via \`${t("list_pull_request_reviews")}\`, then call \`${t("get_review_comments")}\` on each prior Pullfrog review. Each thread renders as a section whose first line is a fenced tag \`comment author=<login> id=<fullDatabaseId> review=<reviewId> thread=<graphqlId>\`; section headers carry \`[RESOLVED]\` / \`[OUTDATED]\` when relevant. For every **open, Pullfrog-originated** thread, decide and act:
+4. **prior feedback — read AND retire it**: fetch previous reviews via \`${t("list_pull_request_reviews")}\`, then call \`${t("get_review_comments")}\` on each prior ReviewX review. Each thread renders as a section whose first line is a fenced tag \`comment author=<login> id=<fullDatabaseId> review=<reviewId> thread=<graphqlId>\`; section headers carry \`[RESOLVED]\` / \`[OUTDATED]\` when relevant. For every **open, ReviewX-originated** thread, decide and act:
 
-   - **Pullfrog-originated** means the FIRST \`comment author=...\` tag in the section is \`author=pullfrog[bot]\`. The \`*\` marker on individual comments is unrelated — it flags whether a comment belongs to the queried review, not whether it is the thread root.
+   - **ReviewX-originated** means the FIRST \`comment author=...\` tag in the section is \`author=reviewx[bot]\`. The \`*\` marker on individual comments is unrelated — it flags whether a comment belongs to the queried review, not whether it is the thread root.
    - **addressed?** read the file at the thread's anchor and judge whether the substantive concern is now resolved by the new commits. Lines being modified isn't enough: reformatting, renaming, or moving the same code elsewhere doesn't address a concern. If the comment raised multiple distinct concerns, ALL must be addressed. The \`[OUTDATED]\` tag means GitHub moved the anchor (line shift, force-push, rename) — it does NOT mean the concern was addressed; re-read the code at its new location before deciding.
    - **if addressed**: call \`${t("reply_to_review_comment")}\` with the root tag's numeric \`id=\` as \`comment_id\` (NOT the \`thread=\` value — that's a separate GraphQL ID used only by resolve) and a one-line body (e.g. \`Addressed in <short-sha>.\`), then call \`${t("resolve_review_thread")}\` with the root tag's \`thread=\` value as \`thread_id\`. Do this BEFORE drafting the new review so the GitHub thread state aligns with the new review by the time it lands.
    - **if uncertain or partially addressed**: leave open. False-positive resolutions erode trust faster than false negatives.
-   - **scope**: only retire Pullfrog-originated threads. Threads from human reviewers belong to those humans to resolve, even if the commit happened to address them.
+   - **scope**: only retire ReviewX-originated threads. Threads from human reviewers belong to those humans to resolve, even if the commit happened to address them.
 
    The remaining open threads feed step 8's dedup filter — anything already flagged and unchanged by the new commits should not be re-raised. The rolling PR summary snapshot is the durable record of retire activity; you don't need to surface it in the review body.
 
@@ -296,11 +296,11 @@ ${PR_SUMMARY_FORMAT}`,
 
    delegation discipline: do NOT summarize the changes for them (a lossy summary biases toward a validation frame; the raw diff is the source), do NOT hand them a curated reading list, do NOT pre-shape their output with a finding schema, and do NOT mention the other specialists — independence is the point.
 
-8. **aggregate, draft, self-critique**: merge findings (yours + output from every specialist you dispatched); de-dup overlaps; trace each finding yourself. drop praise, style preferences, speculative/unverified claims, findings about pre-existing code unrelated to the new commits, anything not actionable, and anything that re-states prior review feedback (heuristic: if the finding's root cause lives in lines the *new commits* added or modified, it's in scope; otherwise drop). also drop **bloat-shaped findings** — proposed fixes that would add defensive checks for cases that can't happen, abstractions used once, comments restating obvious code, tests asserting tautologies, or "just-in-case" guards. subagents are fallible and bias toward recommending changes; the bar for an actionable inline comment is sound + correct + elegant. recommending a change that improves only one of the three (or degrades elegance to nominally improve correctness) makes the codebase worse, not better. To compute "lines the new commits added or modified": if \`incrementalDiffPath\` from step 2 is present, use it directly. Otherwise, take the prior Pullfrog review's \`commit_id\` (returned alongside each entry from \`${t("list_pull_request_reviews")}\` in step 4) and run \`git diff <prior-review-sha>..HEAD\` to isolate the lines added since that review.
+8. **aggregate, draft, self-critique**: merge findings (yours + output from every specialist you dispatched); de-dup overlaps; trace each finding yourself. drop praise, style preferences, speculative/unverified claims, findings about pre-existing code unrelated to the new commits, anything not actionable, and anything that re-states prior review feedback (heuristic: if the finding's root cause lives in lines the *new commits* added or modified, it's in scope; otherwise drop). also drop **bloat-shaped findings** — proposed fixes that would add defensive checks for cases that can't happen, abstractions used once, comments restating obvious code, tests asserting tautologies, or "just-in-case" guards. subagents are fallible and bias toward recommending changes; the bar for an actionable inline comment is sound + correct + elegant. recommending a change that improves only one of the three (or degrades elegance to nominally improve correctness) makes the codebase worse, not better. To compute "lines the new commits added or modified": if \`incrementalDiffPath\` from step 2 is present, use it directly. Otherwise, take the prior ReviewX review's \`commit_id\` (returned alongside each entry from \`${t("list_pull_request_reviews")}\` in step 4) and run \`git diff <prior-review-sha>..HEAD\` to isolate the lines added since that review.
 
    draft inline comments with NEW line numbers from the full PR diff — attach a \`<details>Technical details</details>\` block to any inline comment whose fix is non-trivial or has cross-file implications (see Inline technical details in the format below). every comment must be actionable, 2-3 sentences max in the visible part, one per root cause — name its other sites in that comment rather than repeating it.
 
-9. **build the review body**: use the same default format as Review mode (preamble + optional cross-cutting \`### \` sections) — scoped to the **incremental delta**, not the full PR. The "Reviewed changes" bullets describe what changed since the prior pullfrog review (each bullet starts with a past-tense verb, e.g. \`- Extracted shared CLI runtime into a single module\`). Do NOT include a separate "Prior review feedback" checklist — that's tracked in the rolling PR summary snapshot for the next agent run, and surfacing it in the user-facing body is noise (changes that addressed prior feedback are already covered by the Reviewed-changes bullets). In some cases you may receive a complete diff for the whole PR instead of an incremental one; when this happens, determine what changed since Pullfrog's most recent review yourself before drafting bullets.
+9. **build the review body**: use the same default format as Review mode (preamble + optional cross-cutting \`### \` sections) — scoped to the **incremental delta**, not the full PR. The "Reviewed changes" bullets describe what changed since the prior reviewx review (each bullet starts with a past-tense verb, e.g. \`- Extracted shared CLI runtime into a single module\`). Do NOT include a separate "Prior review feedback" checklist — that's tracked in the rolling PR summary snapshot for the next agent run, and surfacing it in the user-facing body is noise (changes that addressed prior feedback are already covered by the Reviewed-changes bullets). In some cases you may receive a complete diff for the whole PR instead of an incremental one; when this happens, determine what changed since ReviewX's most recent review yourself before drafting bullets.
 
 10. Submit — every run must end with EXACTLY ONE of \`${t("create_pull_request_review")}\` (substantive review) or \`${t("report_progress")}\` (no-review acknowledgement). do NOT call \`create_issue_comment\` for review output.
 
@@ -399,7 +399,7 @@ ${PR_SUMMARY_FORMAT}`,
 3. For substantial work — code changes across multiple files, multi-step investigations:
    - plan your approach before starting
    - use native file and shell tools for local operations
-   - use ${pullfrogMcpName} MCP tools for GitHub/git operations
+   - use ${reviewxMcpName} MCP tools for GitHub/git operations
    - if code changes are needed: review your own diff before committing — verify only intended changes are present, no debug artifacts remain, and the changes are clean enough that a senior engineer would approve without hesitation
 
 4. Finalize:

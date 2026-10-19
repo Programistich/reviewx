@@ -8,8 +8,8 @@ import * as yes from "yes";
 import { apiFetch } from "./apiFetch.ts";
 import { maskSecret } from "./secretCommands.ts";
 
-/** OIDC audience for Pullfrog API token exchanges */
-const OIDC_AUDIENCE = "pullfrog-api";
+/** OIDC audience for ReviewX API token exchanges */
+const OIDC_AUDIENCE = "reviewx-api";
 
 /** GitHub Actions OIDC request credentials, stashed before env wipes */
 export interface OidcCredentials {
@@ -307,7 +307,7 @@ const githubRequest = async <T>(
   const url = `https://api.github.com${path}`;
   const requestHeaders = {
     Accept: "application/vnd.github.v3+json",
-    "User-Agent": "Pullfrog-Installation-Token-Generator/1.0",
+    "User-Agent": "ReviewX-Installation-Token-Generator/1.0",
     ...headers,
   };
 
@@ -432,7 +432,7 @@ export async function ensureGitHubToken(): Promise<void> {
   // when OIDC is available, always mint a fresh token scoped to
   // GITHUB_REPOSITORY. the inherited GITHUB_TOKEN may be scoped to a
   // different repo (e.g., runner token for pullfrog/app when tests
-  // target pullfrog/test-repo).
+  // target reviewx/test-repo).
   if (isOIDCAvailable()) {
     const token = await acquireNewToken();
     process.env.GITHUB_TOKEN = token;
@@ -477,19 +477,19 @@ export async function acquireNewToken(opts?: AcquireTokenOptions): Promise<strin
   // local-dev only. see #739.
   if (process.env.GITHUB_ACTIONS === "true") {
     throw new Error(
-      "missing `permissions: id-token: write` on the Pullfrog workflow job.\n" +
+      "missing `permissions: id-token: write` on the ReviewX workflow job.\n" +
         "\n" +
-        "Pullfrog mints short-lived GitHub App installation tokens via OIDC and\n" +
+        "ReviewX mints short-lived GitHub App installation tokens via OIDC and\n" +
         "requires `id-token: write` to be granted at the job level. add the\n" +
         "following to your workflow yaml:\n" +
         "\n" +
         "  jobs:\n" +
-        "    pullfrog:\n" +
+        "    reviewx:\n" +
         "      permissions:\n" +
-        "        id-token: write   # mint Pullfrog installation tokens via OIDC\n" +
+        "        id-token: write   # mint ReviewX installation tokens via OIDC\n" +
         "        contents: read    # for actions/checkout\n" +
         "\n" +
-        "see https://docs.pullfrog.com/headless-action#required-permissions for the full template."
+        "see https://github.com/programistich/reviewx#workflow for the full template."
     );
   }
   // local development via GitHub App

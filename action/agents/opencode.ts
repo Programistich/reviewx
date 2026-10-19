@@ -3,14 +3,14 @@
  * HTTP. Requires opencode-ai >=1.14.x (the Effect-ts CLI rewrite).
  *
  * Naming note: this was `opencode_v2.ts`, where "v2" meant the second
- * generation of PULLFROG's harness — never a version of OpenCode itself. The
+ * generation of REVIEWX's harness — never a version of OpenCode itself. The
  * original CLI-subprocess harness sat beside it as `opencode.ts` for a while,
  * imported by nothing, which is exactly how a fix lands in the file that
  * doesn't run. It is deleted; this is the only OpenCode harness.
  *
  * Architecture:
  *
- *   1. Spawn ONE `opencode serve --port <p>` subprocess per Pullfrog run via
+ *   1. Spawn ONE `opencode serve --port <p>` subprocess per ReviewX run via
  *      `node:child_process.spawn` directly (NOT our `spawn()` wrapper — see
  *      `bootOpencodeServer` for why: long-lived stdio streaming, manual
  *      activity gating against the SDK event loop, killGroup teardown).
@@ -41,7 +41,7 @@
  * What stays identical:
  *   - native bash blocked (listed as "ask", thrown on by the gate plugin)
  *   - OPENCODE_PERMISSION filesystem sandbox — deny-all + allow /tmp
- *   - MCP Pullfrog server injected via `mcp.<name> = { type: "remote", url }`
+ *   - MCP ReviewX server injected via `mcp.<name> = { type: "remote", url }`
  *   - ASKPASS for git auth
  *   - codex auth materialization + post-hook writeback
  *   - reviewfrog subagent config / model derivation
@@ -63,7 +63,7 @@ import {
   type TextPartInput,
 } from "@opencode-ai/sdk/v2";
 import { Agent, fetch as undiciFetch } from "undici";
-import { pullfrogMcpName } from "../external.ts";
+import { reviewxMcpName } from "../external.ts";
 import { BEDROCK_MODEL_ID_ENV } from "../models.ts";
 import type { ToolState } from "../toolState.ts";
 import {
@@ -88,7 +88,7 @@ import { dirtyTrackedPaths, restoreDirtiedSince } from "../utils/worktree.ts";
 import { GIT_NATIVE_READ_DENY_OPENCODE, GIT_NATIVE_WRITE_DENY_OPENCODE } from "./nativeFsDenies.ts";
 import {
   buildOpencodeSubagentGateSource,
-  PULLFROG_OPENCODE_GATE_PLUGIN_FILENAME,
+  REVIEWX_OPENCODE_GATE_PLUGIN_FILENAME,
 } from "./opencodePlugin.ts";
 import {
   autoSelectModel,
@@ -143,7 +143,7 @@ function buildSecurityConfig(ctx: AgentRunContext, model: string | undefined): s
       // while the server kept working, which is half of #1171. the tool now
       // enforces its own deadline and always answers, so waiting for that
       // answer beats aborting into a retry.
-      [pullfrogMcpName]: { type: "remote", url: ctx.mcpServerUrl, timeout: 660_000 },
+      [reviewxMcpName]: { type: "remote", url: ctx.mcpServerUrl, timeout: 660_000 },
     },
     agent: (() => {
       const cfg = buildReviewerAgentConfig(model);
@@ -451,7 +451,7 @@ interface RunnerContext {
    */
   loggedToolCallIDs: Set<string>;
   /**
-   * Count of orchestrator calls to a Pullfrog MCP tool (`pullfrog_*`). Every
+   * Count of orchestrator calls to a ReviewX MCP tool (`reviewx_*`). Every
    * artifact a run can leave behind — a review, a progress report, a push, a
    * commit through the shell — goes through one, whereas `read`/`grep`/`glob`
    * leave nothing. The salvage gate reads it to tell work from talk (#1085).
@@ -691,7 +691,7 @@ function processTerminalToolPart(
   const callLine = inputFormatted !== "{}" ? `» ${toolName}(${inputFormatted})` : `» ${toolName}()`;
   log.info(withLabel(label, callLine));
   if (isOrchestrator) ctx.loggedToolCallIDs.add(toolId);
-  if (isOrchestrator && toolName.startsWith("pullfrog_")) ctx.mcpToolCalls++;
+  if (isOrchestrator && toolName.startsWith("reviewx_")) ctx.mcpToolCalls++;
 
   if (state.status === "completed") {
     log.debug(withLabel(label, `  output: ${state.output}`));
@@ -993,7 +993,7 @@ async function aggregateTurnUsage(
   if (total === 0 && outputTokens === 0 && costUsd === 0) return undefined;
 
   return {
-    agent: "pullfrog",
+    agent: "reviewx",
     inputTokens: total,
     outputTokens,
     cacheReadTokens: cacheReadTokens || undefined,
@@ -1017,7 +1017,7 @@ function buildUsage(
   const accumulatorTotal = t.input + t.cacheRead + t.cacheWrite;
   if (accumulatorTotal > 0 || t.output > 0 || turn.costUsd > 0) {
     return {
-      agent: "pullfrog",
+      agent: "reviewx",
       inputTokens: accumulatorTotal,
       outputTokens: t.output,
       cacheReadTokens: t.cacheRead || undefined,
@@ -1030,7 +1030,7 @@ function buildUsage(
     const total = (at.input || 0) + (at.cache?.read || 0) + (at.cache?.write || 0);
     if (total === 0 && (at.output || 0) === 0 && (assistant.cost || 0) === 0) return undefined;
     return {
-      agent: "pullfrog",
+      agent: "reviewx",
       inputTokens: total,
       outputTokens: at.output || 0,
       cacheReadTokens: at.cache?.read || undefined,
@@ -1159,8 +1159,8 @@ function startInnerActivityWatchdog(params: {
       : watchdogBudgetMs(
           compiledMs,
           params.ctx.diagnostic.sawModelOutput
-            ? "PULLFROG_E2E_ACTIVITY_TIMEOUT_MS"
-            : "PULLFROG_E2E_FIRST_EVENT_TIMEOUT_MS"
+            ? "REVIEWX_E2E_ACTIVITY_TIMEOUT_MS"
+            : "REVIEWX_E2E_FIRST_EVENT_TIMEOUT_MS"
         );
     if (idleMs <= budgetMs) return;
     fired = true;
@@ -1258,7 +1258,7 @@ export const opencode = agent({
     const opencodePluginDir = join(homeEnv.XDG_CONFIG_HOME, "opencode", "plugin");
     mkdirSync(opencodePluginDir, { recursive: true });
     writeFileSync(
-      join(opencodePluginDir, PULLFROG_OPENCODE_GATE_PLUGIN_FILENAME),
+      join(opencodePluginDir, REVIEWX_OPENCODE_GATE_PLUGIN_FILENAME),
       buildOpencodeSubagentGateSource(ctx)
     );
 
@@ -1274,7 +1274,7 @@ export const opencode = agent({
     // OPENCODE_PERMISSION has absolute highest precedence (merged after managed/MDM configs).
     // external_directory gates ALL native filesystem tools (Read, Write, Edit, Glob, Grep, etc.)
     // for paths outside the project root. last-match-wins: deny everything, then allow /tmp.
-    // codex auth lives at /var/lib/pullfrog/run-*/opencode/auth.json in CI (see codexHome.ts),
+    // codex auth lives at /var/lib/reviewx/run-*/opencode/auth.json in CI (see codexHome.ts),
     // which is outside /tmp/* — deny-default protects it from native FS tools.
     //
     // read + edit rules deny git surfaces INSIDE the project root, where
@@ -1288,7 +1288,7 @@ export const opencode = agent({
     // wiki/security.md). canonical surfaces: action/agents/nativeFsDenies.ts.
     // the plugin dir sits under /tmp (the per-run HOME), which the /tmp allow
     // would otherwise expose to native FS tools. deny it back AFTER that allow
-    // (last-match-wins) so the agent cannot rewrite a pullfrog plugin to capture
+    // (last-match-wins) so the agent cannot rewrite a reviewx plugin to capture
     // the env it loads with — the OpenCode side of the hook seal. opencode's own
     // plugin loader is unaffected (it does not go through this tool gate). the
     // MCP shell is sealed separately by the read-only bind in action/mcp/shell.ts.
@@ -1322,7 +1322,7 @@ export const opencode = agent({
     // opencode 1.18 gates a code-mode `execute` tool — a script interpreter —
     // behind either of these. the spawn env inherits the workflow's `env:` block,
     // so leaving them set would let a repo-level variable hand the agent shell
-    // execution that sidesteps the bash block. shell goes through pullfrog_shell,
+    // execution that sidesteps the bash block. shell goes through reviewx_shell,
     // always. see wiki/sandbox-v2.md.
     delete env.OPENCODE_EXPERIMENTAL;
     delete env.OPENCODE_EXPERIMENTAL_CODE_MODE;
@@ -1332,7 +1332,7 @@ export const opencode = agent({
     if (codexAuth) delete env.OPENAI_API_KEY;
     if (xaiAuth) delete env.XAI_API_KEY;
 
-    log.debug(`» starting Pullfrog (OpenCode, in-process SDK): ${cliPath}`);
+    log.debug(`» starting ReviewX (OpenCode, in-process SDK): ${cliPath}`);
     log.debug(`» working directory: ${repoDir}`);
 
     // ── boot server + create session ─────────────────────────────────────────
@@ -1377,7 +1377,7 @@ export const opencode = agent({
         fetch: fetchWithoutTimeout,
       });
 
-      const sessionResp = await client.session.create({ title: "Pullfrog" });
+      const sessionResp = await client.session.create({ title: "ReviewX" });
       // config and plugins load lazily during instance bootstrap — on the first
       // request, not at spawn — so this is the earliest point the startup writes
       // above have all landed, and it is still ahead of the first agent turn.
@@ -1406,7 +1406,7 @@ export const opencode = agent({
       const runnerCtx: RunnerContext = {
         client,
         sessionID,
-        label: "Pullfrog",
+        label: "ReviewX",
         orchestratorSessionID: sessionID,
         labeler,
         toolState: ctx.toolState,
@@ -1427,7 +1427,7 @@ export const opencode = agent({
         serverExitCause: server.exitCause,
         lastSessionError: undefined,
         diagnostic: {
-          label: "Pullfrog",
+          label: "ReviewX",
           recentStderr: server.recentStderr,
           lastProviderError: undefined,
           idleSec: undefined,
@@ -1551,7 +1551,7 @@ export const opencode = agent({
         // under-report `WorkflowRun.inputTokens`. the post-run loop merges across
         // its own resumes but sits above this, so the pair is merged here.
         const usage = mergeAgentUsage(result.usage, salvaged.usage);
-        // a salvage that reached no Pullfrog tool left nothing behind. Review
+        // a salvage that reached no ReviewX tool left nothing behind. Review
         // gates itself on `create_pull_request_review`, but Build/Fix/Plan have
         // no terminal gate — so letting prose alone stand as success would post
         // "sorry, I was cut off" as the run's answer and report a green run
@@ -1560,7 +1560,7 @@ export const opencode = agent({
         // salvage that re-read one file and then apologised would have passed.
         if (runnerCtx.mcpToolCalls === mcpCallsBefore) {
           log.info(
-            "» salvage turn reached no Pullfrog tool — keeping the activity-timeout failure"
+            "» salvage turn reached no ReviewX tool — keeping the activity-timeout failure"
           );
           return { ...result, usage };
         }

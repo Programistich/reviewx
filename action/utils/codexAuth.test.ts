@@ -108,7 +108,7 @@ describe("resolved target is actually spawnable", () => {
    * against a `.cmd` shim, so resolving first is what makes the launch work. */
   it("runs a shim that a bare spawn cannot find", async () => {
     const directory = shimDir();
-    const name = "pullfrog-codex-probe";
+    const name = "reviewx-codex-probe";
     if (isWindows) writeCmdShim(directory, name);
     else writePosixShim(directory, name);
 
@@ -129,7 +129,7 @@ describe("resolved target is actually spawnable", () => {
   it.runIf(isWindows)("runs a shim whose path contains spaces", async () => {
     const directory = join(shimDir(), "dir with spaces");
     mkdirSync(directory);
-    const name = "pullfrog codex probe";
+    const name = "reviewx codex probe";
     writeCmdShim(directory, name);
 
     const env = { ...process.env, PATH: `${directory}${delimiter}${process.env.PATH ?? ""}` };
@@ -156,7 +156,7 @@ describe("resolved target is actually spawnable", () => {
 
   it.runIf(isWindows)("proves the bare-name spawn this fix replaces fails", async () => {
     const directory = shimDir();
-    const name = "pullfrog-codex-probe-bare";
+    const name = "reviewx-codex-probe-bare";
     writeCmdShim(directory, name);
     const failure = await new Promise<NodeJS.ErrnoException>((resolve) => {
       const child = spawn(name, [], { env: { ...process.env, PATH: directory } });

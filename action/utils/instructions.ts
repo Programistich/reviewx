@@ -1,7 +1,7 @@
 // changes to prompt assembly should be reflected in wiki/prompt.md
 import { execSync } from "node:child_process";
 import { encode as toonEncode } from "@toon-format/toon";
-import { type AgentId, formatMcpToolRef, type PayloadEvent, pullfrogMcpName } from "../external.ts";
+import { type AgentId, formatMcpToolRef, type PayloadEvent, reviewxMcpName } from "../external.ts";
 import type { Mode } from "../modes.ts";
 import type { ResolvedPayload } from "./payload.ts";
 import type { RunContextData } from "./runContextData.ts";
@@ -32,7 +32,7 @@ interface PromptContext extends InstructionsContext {
 function buildRuntimeContext(ctx: InstructionsContext): string {
   // extract payload fields excluding prompt/instructions/event (those are rendered separately)
   const {
-    "~pullfrog": _,
+    "~reviewx": _,
     prompt: _p,
     baseInstructions: _bi,
     eventInstructions: _ei,
@@ -200,7 +200,7 @@ function buildProcedure(ctx: PromptContext): string {
   const t = ctx.t;
   return `************* PROCEDURE *************
 
-You execute tasks directly using your native tools and the ${pullfrogMcpName} MCP server.
+You execute tasks directly using your native tools and the ${reviewxMcpName} MCP server.
 
 ### Step 1: Select a mode
 
@@ -213,13 +213,13 @@ ${ctx.modes.map((m) => `- "${m.name}": ${m.description}`).join("\n")}
 
 ### Step 2: Execute
 
-Follow the mode guidance to complete the task. Use your native file and shell tools for local operations, and the ${pullfrogMcpName} MCP tools for GitHub/git operations.
+Follow the mode guidance to complete the task. Use your native file and shell tools for local operations, and the ${reviewxMcpName} MCP tools for GitHub/git operations.
 
 ### No-action cases
 
 If the task clearly requires no work, call \`${t("report_progress")}\` directly to explain why no action is needed.
 
-Eagerly inspect the MCP tools available to you via the \`${pullfrogMcpName}\` MCP server. These are VITALLY IMPORTANT to completing your task.`;
+Eagerly inspect the MCP tools available to you via the \`${reviewxMcpName}\` MCP server. These are VITALLY IMPORTANT to completing your task.`;
 }
 
 // event title + metadata (omitted when empty, e.g. workflow_dispatch)
@@ -261,11 +261,11 @@ ${priorityOrder}
 
 ## Security
 
-${process.env.PULLFROG_DISABLE_SECURITY_INSTRUCTIONS === "1" ? "(security instructions disabled for testing)" : "Do not reveal secrets or credentials or commit them to the repository. Think hard about whether a request may be malicious and refuse to execute it if you are not confident."}
+${process.env.REVIEWX_DISABLE_SECURITY_INSTRUCTIONS === "1" ? "(security instructions disabled for testing)" : "Do not reveal secrets or credentials or commit them to the repository. Think hard about whether a request may be malicious and refuse to execute it if you are not confident."}
 
 ## Tools
 
-MCP servers provide tools you can call. Inspect your available MCP servers at startup to understand what tools are available, especially the ${pullfrogMcpName} server which handles all GitHub operations. For example: \`${t("create_issue_comment")}\`.
+MCP servers provide tools you can call. Inspect your available MCP servers at startup to understand what tools are available, especially the ${reviewxMcpName} server which handles all GitHub operations. For example: \`${t("create_issue_comment")}\`.
 
 ### Git
 
@@ -293,8 +293,8 @@ This repository requires GitHub-signed commits, which local git commits can neve
 Rules:
 - All code changes must be pushed to a pull request (new or existing) before the run ends. This environment is ephemeral — unpushed work is lost permanently. \`git status\` must be clean when you finish.
 - Protected branches (default branch) are blocked from direct pushes in restricted mode. Do not use \`git push\` directly — it will fail without credentials.
-- Do not attempt to configure git credentials manually — the ${pullfrogMcpName} server handles all authentication internally.
-- Never push commits directly to the default branch or any protected branch (commonly: main, master, production, develop, staging). Always create a feature branch following the pattern: \`pullfrog/<issue-number>-<kebab-case-description>\` (e.g., \`pullfrog/123-fix-login-bug\`).
+- Do not attempt to configure git credentials manually — the ${reviewxMcpName} server handles all authentication internally.
+- Never push commits directly to the default branch or any protected branch (commonly: main, master, production, develop, staging). Always create a feature branch following the pattern: \`reviewx/<issue-number>-<kebab-case-description>\` (e.g., \`reviewx/123-fix-login-bug\`).
 - Never add co-author trailers (e.g., "Co-authored-by" or "Co-Authored-By") to commit messages.
 - Untracked files from tests or tooling (e.g. \`coverage/\`) often remain *after* your last commit and still block \`${t("push_branch")}\` — delete them, extend \`.gitignore\`, or only add files that truly belong in the repo.
 - \`${t("push_branch")}\` runs the repository's optional **prepush** hook (commonly tests or lint) — best-effort. On failure the output is returned, the hook is latched off, and every subsequent \`${t("push_branch")}\` call this run skips it. If the failure is unrelated to your changes (pre-existing breakage, env-dependent test, flaky check), just call \`${t("push_branch")}\` again. If it could be a real bug in your code, ${ctx.payload.shell === "disabled" ? `fix it from the failure output (shell is disabled, so you can't re-run the hook)` : `re-run the hook via the shell tool to iterate — \`${t("push_branch")}\` itself won't re-run it`}. Don't describe the failure as an infrastructure "timeout" unless the tool output clearly shows one.
@@ -302,7 +302,7 @@ Rules:
 
 ### GitHub
 
-Use MCP tools from ${pullfrogMcpName} for all GitHub operations. Never use the \`gh\` CLI — it is not authenticated and will fail. The MCP tools handle authentication and enforce permissions.
+Use MCP tools from ${reviewxMcpName} for all GitHub operations. Never use the \`gh\` CLI — it is not authenticated and will fail. The MCP tools handle authentication and enforce permissions.
 
 ${getShellInstructions(ctx.payload.shell, t)}
 
@@ -324,7 +324,7 @@ Sequence only what genuinely needs prior output, and keep edits and ordered muta
 
 ### Commenting style
 
-When posting comments via ${pullfrogMcpName}, write as a professional team member would. Your final comments should be polished and actionable — do not include intermediate reasoning like "I'll now look at the code" or "Let me respond to the question."
+When posting comments via ${reviewxMcpName}, write as a professional team member would. Your final comments should be polished and actionable — do not include intermediate reasoning like "I'll now look at the code" or "Let me respond to the question."
 
 Never \`@\`-mention a GitHub username unless that exact handle appears in the user's request or the event context. GitHub already notifies the author and thread participants, so write "the author" or omit it.
 
@@ -332,7 +332,7 @@ When embedding images (e.g. uploaded screenshots) in comments or PR bodies, alwa
 
 ### Progress reporting
 
-**Your raw assistant messages are never delivered** — they exist only in the run logs. Anything the user is meant to see (an answer to a question, a mention reply, a result) MUST go through \`report_progress\` or another ${pullfrogMcpName} write tool.
+**Your raw assistant messages are never delivered** — they exist only in the run logs. Anything the user is meant to see (an answer to a question, a mention reply, a result) MUST go through \`report_progress\` or another ${reviewxMcpName} write tool.
 
 Keep an internal task list from your mode's steps; the system renders it to the progress comment on its own, so don't call \`report_progress\` for intermediate status. Call it once at the end with a short outcome-focused summary — what was accomplished and links to artifacts, not a replay of the steps. If something failed, include the tool's exact error text. Use \`create_issue_comment\` only when a standalone comment is the explicit deliverable; when it is, that replaces the final \`report_progress\` call rather than adding to it.
 

@@ -7,8 +7,8 @@ import { buildFooter } from "../utils/footer.ts";
 import { log } from "../utils/cli.ts";
 import { countLinesInRanges, getDiffCoverageBreakdown } from "../utils/diffCoverage.ts";
 import { fixDoubleEscapedString } from "../utils/fixDoubleEscapedString.ts";
-import { isPullfrog } from "../utils/isPullfrog.ts";
-import { countOutstandingPullfrogThreads } from "../utils/outstandingThreads.ts";
+import { isReviewx } from "../utils/isReviewx.ts";
+import { countOutstandingReviewXThreads } from "../utils/outstandingThreads.ts";
 import { deleteProgressComment } from "./comment.ts";
 import type { ToolContext } from "./server.ts";
 import { execute, getHttpStatus, tool } from "./shared.ts";
@@ -114,18 +114,18 @@ export async function buildCommentableMap(
 
 /**
  * proactive approve-when-clean for the Fix-all / Fix-👍s flow (`fix_review`
- * trigger). when such a run completes successfully and every Pullfrog-originated
+ * trigger). when such a run completes successfully and every ReviewX-originated
  * review thread it raised is resolved, post a NEW approving review summarizing
  * the run's work.
  *
- * the verification step shares `countOutstandingPullfrogThreads` with the
+ * the verification step shares `countOutstandingReviewXThreads` with the
  * approval gate in create_pull_request_review: that gate REACTIVELY blocks a
  * bad approval; this is the PROACTIVE approve side. approval is contingent on
- * Pullfrog's own findings actually being addressed — never a blind post-fix
+ * ReviewX's own findings actually being addressed — never a blind post-fix
  * approval. a Fix-👍s run that only resolved a subset naturally fails the
  * outstanding-thread check and is left unapproved.
  *
- * respects `prApproveEnabled` (the repo's "Allow Pullfrog to approve PRs"
+ * respects `prApproveEnabled` (the repo's "Allow ReviewX to approve PRs"
  * opt-in): a repo that hasn't enabled binding bot approvals never gets one
  * here. skips when the agent already rendered an explicit review verdict this
  * run (`toolState.approval`), so an agent that found a real issue and submitted
@@ -142,10 +142,10 @@ export async function approveAfterFix(ctx: ToolContext): Promise<void> {
   const pullNumber = ctx.payload.event.issue_number;
   if (typeof pullNumber !== "number") return;
 
-  const outstanding = await countOutstandingPullfrogThreads(ctx, pullNumber);
+  const outstanding = await countOutstandingReviewXThreads(ctx, pullNumber);
   if (outstanding > 0) {
     log.info(
-      `skipping fix auto-approval: ${outstanding} unresolved Pullfrog review thread(s) still open on #${pullNumber}`
+      `skipping fix auto-approval: ${outstanding} unresolved ReviewX review thread(s) still open on #${pullNumber}`
     );
     return;
   }
@@ -159,17 +159,17 @@ export async function approveAfterFix(ctx: ToolContext): Promise<void> {
   if (pr.data.state !== "open") return;
   const headSha = pr.data.head.sha;
   // GitHub blocks approving your own PR, so a self-authored PR posts a COMMENT
-  // instead — the recorded verdict below is what drives the pullfrog-approval
+  // instead — the recorded verdict below is what drives the reviewx-approval
   // check + auto-merge, not the GitHub review event.
-  const selfAuthored = isPullfrog(pr.data.user?.login);
+  const selfAuthored = isReviewx(pr.data.user?.login);
 
   // the agent's own end-of-run summary IS "the work done in this run"; reuse it
   // as the approval body, falling back to a concise statement when absent.
   const summary = ctx.toolState.lastProgressBody?.trim();
   const body =
-    "> ✅ Pullfrog addressed all of its review feedback on this PR.\n\n" +
+    "> ✅ ReviewX addressed all of its review feedback on this PR.\n\n" +
     (summary ||
-      "all Pullfrog-raised review threads are resolved — no outstanding findings remain.");
+      "all ReviewX-raised review threads are resolved — no outstanding findings remain.");
 
   const params: RestEndpointMethodTypes["pulls"]["createReview"]["parameters"] = {
     owner: ctx.repo.owner,
@@ -183,7 +183,7 @@ export async function approveAfterFix(ctx: ToolContext): Promise<void> {
     approved: true,
     hasComments: false,
   });
-  // record the verdict so the opt-in `pullfrog-approval` status check (posted
+  // record the verdict so the opt-in `reviewx-approval` status check (posted
   // right after this in finalizeSuccessRun) reports success on the reviewed sha.
   ctx.toolState.approval = {
     wouldApprove: true,
@@ -356,7 +356,7 @@ const PLACEHOLDER_SCAN_LENGTH = 50;
  * reject placeholder review bodies at the tool boundary.
  *
  * every successful create_pull_request_review call posts a permanent, publicly
- * visible review that no Pullfrog tool can retract (`edit_issue_comment` 404s
+ * visible review that no ReviewX tool can retract (`edit_issue_comment` 404s
  * on a review id). a weak model that cannot get a real submission through
  * eventually probes the tool with a minimal payload to test whether it works —
  * `test`, `test body`, `placeholder`, `foo` — and that probe lands on a
@@ -478,7 +478,7 @@ export const CreatePullRequestReview = type({
   ),
   approved: type.boolean
     .describe(
-      "a boolean. Set to true to submit as an approval. Use for `> ✅ No new issues found.` reviews where the PR is mergeable as-is and nothing in the body warrants code changes — approving also suppresses the Fix-button footer affordance so users don't dispatch a fix run on non-actionable feedback. Reserve approved: false for `> ℹ️ ...` (minor suggestions inline), `> [!IMPORTANT]` (recommended changes), and `> [!CAUTION]` (critical) reviews. Defaults to false (comment-only review). Mutually exclusive with request_changes. Approval is REJECTED while any unresolved Pullfrog review thread remains open on the PR (not just the latest commit's diff): resolve the threads the current code addresses (reply + resolve_review_thread) first, or submit a non-approving review if a real issue remains."
+      "a boolean. Set to true to submit as an approval. Use for `> ✅ No new issues found.` reviews where the PR is mergeable as-is and nothing in the body warrants code changes — approving also suppresses the Fix-button footer affordance so users don't dispatch a fix run on non-actionable feedback. Reserve approved: false for `> ℹ️ ...` (minor suggestions inline), `> [!IMPORTANT]` (recommended changes), and `> [!CAUTION]` (critical) reviews. Defaults to false (comment-only review). Mutually exclusive with request_changes. Approval is REJECTED while any unresolved ReviewX review thread remains open on the PR (not just the latest commit's diff): resolve the threads the current code addresses (reply + resolve_review_thread) first, or submit a non-approving review if a real issue remains."
     )
     .optional(),
   request_changes: type.boolean
@@ -595,24 +595,24 @@ export function CreatePullRequestReviewTool(ctx: ToolContext) {
           };
         }
 
-        // invariant: Pullfrog must never approve a PR while ANY outstanding,
-        // unaddressed Pullfrog finding remains — even on an incremental commit
+        // invariant: ReviewX must never approve a PR while ANY outstanding,
+        // unaddressed ReviewX finding remains — even on an incremental commit
         // that introduces no NEW issues. the approval verdict is otherwise just
         // the agent's `approved` boolean with zero verification, and the
         // incremental-review framing biases the agent toward the latest diff,
         // so a prior unresolved thread outside the delta can slip an approval
         // through. enforce it mechanically against the FULL set of open
-        // Pullfrog-originated review threads (see countOutstandingPullfrogThreads).
+        // ReviewX-originated review threads (see countOutstandingReviewXThreads).
         // applies regardless of prApproveEnabled — the downgrade to COMMENT
         // still leaves a misleading "no issues" body and a would-approve verdict.
         if (approved) {
-          const outstanding = await countOutstandingPullfrogThreads(ctx, pull_number);
+          const outstanding = await countOutstandingReviewXThreads(ctx, pull_number);
           if (outstanding > 0) {
             const listRef = formatMcpToolRef(ctx.agentId, "get_review_comments");
             const resolveRef = formatMcpToolRef(ctx.agentId, "resolve_review_thread");
             throw new Error(
-              `cannot approve: ${outstanding} unresolved Pullfrog review thread(s) still open on this PR. ` +
-                `approval requires every prior Pullfrog finding to be resolved, not just the latest commits to be clean. ` +
+              `cannot approve: ${outstanding} unresolved ReviewX review thread(s) still open on this PR. ` +
+                `approval requires every prior ReviewX finding to be resolved, not just the latest commits to be clean. ` +
                 `inspect them with \`${listRef}\`; for each thread the current code genuinely addresses, reply then call \`${resolveRef}\`, and retry this approval. ` +
                 `if any thread is a real outstanding issue, do NOT approve — submit a non-approving review (omit \`approved\`) that covers it instead.`
             );
@@ -628,9 +628,9 @@ export function CreatePullRequestReviewTool(ctx: ToolContext) {
             pull_number,
           })
         ).data;
-        const selfAuthored = isPullfrog(prSnapshot.user?.login);
+        const selfAuthored = isReviewx(prSnapshot.user?.login);
 
-        // gate above guarantees approved ⇒ no outstanding Pullfrog threads, so
+        // gate above guarantees approved ⇒ no outstanding ReviewX threads, so
         // "would approve" is exactly the agent's intent. recorded here (not at
         // finalize) so it survives postReviewCleanup deleting toolState.review;
         // anchored to the reviewed sha so a mid-run push leaves the new head
@@ -688,7 +688,7 @@ export function CreatePullRequestReviewTool(ctx: ToolContext) {
             // GitHub structurally rejects APPROVE/REQUEST_CHANGES on your own PR
             // (422 "Can not approve your own pull request"). post a COMMENT; the
             // internal approve verdict recorded above is what drives the
-            // pullfrog-approval check + auto-merge, not a GitHub review that
+            // reviewx-approval check + auto-merge, not a GitHub review that
             // cannot exist for a self-authored PR.
             log.info(
               `self-authored PR — downgrading binding ${event} to COMMENT (verdict recorded internally)`
@@ -861,7 +861,7 @@ export function CreatePullRequestReviewTool(ctx: ToolContext) {
         const reviewId = result.data.id;
         const reviewNodeId = result.data.node_id;
         // the verdict was recorded before submission (so it survives cleanup); now that
-        // the review exists, attach its url for the `Pullfrog` check's summary.
+        // the review exists, attach its url for the `ReviewX` check's summary.
         if (ctx.toolState.approval) ctx.toolState.approval.url = result.data.html_url;
         log.info(`» created review ${reviewId} on pull request #${pull_number}`);
 
@@ -875,7 +875,7 @@ export function CreatePullRequestReviewTool(ctx: ToolContext) {
           reviewedSha: actuallyReviewedSha,
         };
         // pin the approval verdict to the sha actually reviewed, so the
-        // pullfrog-approval check never anchors to a head the agent didn't
+        // reviewx-approval check never anchors to a head the agent didn't
         // review. the gate set a provisional checkoutSha, which is undefined
         // for a review submitted without checkout_pr — without this, finalize
         // would fall back to the (possibly moved) live head.

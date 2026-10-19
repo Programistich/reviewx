@@ -19,7 +19,7 @@ import {
   resolveDisplayAlias,
   VERTEX_MODEL_ID_ENV,
 } from "../models.ts";
-import { PULLFROG_DATA_DIR, unhostedSubscriptions } from "./codexHome.ts";
+import { REVIEWX_DATA_DIR, unhostedSubscriptions } from "./codexHome.ts";
 import { getModelsFailure } from "./openCodeModels.ts";
 import { REVIEWX_REPO_URL } from "./footer.ts";
 import { PROVIDER_DASHBOARDS } from "./providerDashboards.ts";
@@ -104,7 +104,7 @@ function throwKeyError(params: { owner: string; name: string; model?: string | u
  *
  * The lead says "this run used" rather than "this repo is configured to use",
  * because the resolved model does not always come from the repo's config — a
- * trigger-time `--model=`, a `PULLFROG_MODEL` variable or a server-side canary
+ * trigger-time `--model=`, a `REVIEWX_MODEL` variable or a server-side canary
  * arm all land here too, and asserting provenance we do not have blames the
  * user's configuration for a model they never chose. A model canary did exactly
  * that to vite-hub/vitehub#1347 on 2026-09-08.
@@ -130,7 +130,7 @@ function buildMissingApiKeyError(params: {
     ? getModelManagedCredentials(params.model).find((name) => unhostedSubscriptions.has(name))
     : undefined;
   const fix = unhosted
-    ? `**To fix:** your ${SUBSCRIPTION_CREDENTIALS[unhosted]?.label} is configured, but this runner has no passwordless \`sudo\`, which ReviewX needs to keep it in \`${PULLFROG_DATA_DIR}\`, out of the agent's reach. Allow passwordless \`sudo\` for the runner user, run on a GitHub-hosted runner, or add an API key as a GitHub Actions secret.`
+    ? `**To fix:** your ${SUBSCRIPTION_CREDENTIALS[unhosted]?.label} is configured, but this runner has no passwordless \`sudo\`, which ReviewX needs to keep it in \`${REVIEWX_DATA_DIR}\`, out of the agent's reach. Allow passwordless \`sudo\` for the runner user, run on a GitHub-hosted runner, or add an API key as a GitHub Actions secret.`
     : "**To fix:** add the key as a GitHub Actions secret and reference it from your workflow's `env:` block — or set the `model` input to a different model (free models need no key).";
 
   return [
@@ -194,7 +194,7 @@ only the API key is sensitive — add it as a secret at ${githubSecretsUrl}. eve
   ${OPENAI_COMPATIBLE_CONTEXT_ENV}: "128000"
   ${OPENAI_COMPATIBLE_MAX_OUTPUT_ENV}: "16384"
 
-set the last two to the real limits of the model your endpoint serves. Pullfrog can't
+set the last two to the real limits of the model your endpoint serves. ReviewX can't
 discover them — your endpoint owns the model catalog — and without them completions are
 capped at 32000 tokens (rejected outright by models with a smaller cap) and
 auto-compaction is disabled, so long runs grow until your endpoint refuses them.
@@ -219,7 +219,7 @@ ${AZURE_RESOURCE_NAME_ENV} is the \`<name>\` in your endpoint https://<name>.ope
 ${AZURE_DEPLOYMENT_ENV} is the name of the deployment, which is not necessarily the name of
 the model it serves — Azure routes on the deployment name.
 
-set the last two to the real limits of whichever model your deployment serves. Pullfrog can't
+set the last two to the real limits of whichever model your deployment serves. ReviewX can't
 discover them — a deployment name carries no catalog metadata — and without them completions
 are capped at 32000 tokens (rejected outright by models with a smaller cap) and auto-compaction
 is disabled, so long runs grow until Azure refuses them.
@@ -235,7 +235,7 @@ function hasEnvVar(name: string): boolean {
 /**
  * Whether this run actually holds a credential that can serve `model`.
  * Managed credentials count: `openai` carries `CODEX_AUTH_JSON`, so a run
- * authenticated by `pullfrog auth codex` has no `OPENAI_API_KEY` and would
+ * authenticated by `reviewx auth codex` has no `OPENAI_API_KEY` and would
  * otherwise read as unservable on every `openai/*` entry. A model with no
  * declared credential at all (off-registry provider) stays eligible rather
  * than being refused on our own ignorance.
@@ -538,7 +538,7 @@ export function isApiKeyAuthError(text: string): boolean {
 /**
  * Dead OAuth-connection credential — the provider is telling us the token
  * itself is finished (expired, invalidated, revoked, or unrecognised), and the
- * only fix is to re-authenticate the connection (`pullfrog auth <provider>`),
+ * only fix is to re-authenticate the connection (`reviewx auth <provider>`),
  * never to rotate a repo-secret API key. `formatApiKeyErrorSummary` renders
  * distinct copy for the whole class.
  *

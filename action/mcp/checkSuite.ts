@@ -153,9 +153,9 @@ export function GetCheckSuiteLogsTool(ctx: ToolContext) {
       }
 
       // setup logs directory
-      const tempDir = process.env.PULLFROG_TEMP_DIR;
+      const tempDir = process.env.REVIEWX_TEMP_DIR;
       if (!tempDir) {
-        throw new Error("PULLFROG_TEMP_DIR not set");
+        throw new Error("REVIEWX_TEMP_DIR not set");
       }
       const logsDir = join(tempDir, "ci-logs");
       mkdirSync(logsDir, { recursive: true });

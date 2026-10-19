@@ -129,7 +129,7 @@ const OPENCODE_GATEWAY_PATH: Record<string, string> = { anthropic: "/v1" };
  * `anthropic/*` normally never reaches here — `resolveAgent` routes it to
  * claude-code, which reads ANTHROPIC_BASE_URL natively — but keying off the
  * resolved specifier rather than the harness means it still holds on the paths
- * that do send a Claude model through opencode (`PULLFROG_AGENT=opencode`).
+ * that do send a Claude model through opencode (`REVIEWX_AGENT=opencode`).
  */
 export function providerGatewayOverride(
   model: string | undefined
@@ -296,16 +296,13 @@ export async function installOpencodeCli(params: { binPath: string }): Promise<s
 
 // ── model auto-select fallback ──────────────────────────────────────────────────
 //
-// steps 1–2 of model resolution (PULLFROG_MODEL env, slug resolution) happen
+// steps 1–2 of model resolution (REVIEWX_MODEL env, slug resolution) happen
 // in resolveModel() in utils/agent.ts before the agent runs. this is step 3:
 // auto-select using the authorized model set captured in main.ts via
 // `opencode models` introspection.
 
-// the console picker is locked for Router accounts without a payment method —
-// exactly the accounts that land here once their wallet runs dry.
 const AUTO_SELECT_WARNING =
-  "select a model explicitly in the Pullfrog console (https://pullfrog.com/console) to avoid this — " +
-  "if the picker is locked, this run had no Pullfrog Router funding: add a card or top up your credit.";
+  "set the `model` input (or the REVIEWX_MODEL variable) explicitly to avoid this.";
 
 export function autoSelectModel(): string | undefined {
   const authorized = getAuthorizedModels();

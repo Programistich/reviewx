@@ -21,7 +21,7 @@ import { defineFixture } from "../utils.ts";
  *   - the refresh chain advances during the run (proving the refresh path
  *     works end-to-end against live Codex auth servers).
  *   - detectCodexRefresh() would surface the rotation to entryPost.ts for
- *     write-back to Pullfrog's secret store.
+ *     write-back to ReviewX's secret store.
  *
  * the post-hook itself runs in a separate GHA `post:` step and is not
  * invoked by `pnpm runtest`. instead, this test asserts the on-disk auth.json
@@ -97,8 +97,8 @@ export const test: TestRunnerOptions = {
   validator,
   agents: ["opencode"],
   env: {
-    PULLFROG_MODEL: "openai/gpt-5.5",
-    PULLFROG_DISABLE_SECURITY_INSTRUCTIONS: "1",
+    REVIEWX_MODEL: "openai/gpt-5.5",
+    REVIEWX_DISABLE_SECURITY_INSTRUCTIONS: "1",
   },
   // forks + contributors without the Codex secret skip cleanly rather than
   // failing on `auth_materialized=✗` and (with fail-fast: true) cascading

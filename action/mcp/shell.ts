@@ -189,7 +189,7 @@ const PROC_CLEANUP =
 // without sudo. bind-mounting /dev/null on top inside the sandbox's mount
 // namespace makes the socket unreachable from sandboxed shells without
 // touching the host runner (so it doesn't break user workflow steps that
-// run before/after pullfrog and legitimately need docker). same trick for
+// run before/after reviewx and legitimately need docker). same trick for
 // podman/containerd/cri-o sockets — all silent-fail if the path is missing.
 const SOCKET_CLEANUP = [
   "/var/run/docker.sock",
@@ -203,20 +203,20 @@ const SOCKET_CLEANUP = [
   .join(" ");
 
 // extend the mount-namespace isolation that PROC_CLEANUP and SOCKET_CLEANUP
-// already establish. these mounts hide pullfrog-managed on-disk secrets,
+// already establish. these mounts hide reviewx-managed on-disk secrets,
 // block env-injection into subsequent workflow steps, and make git's
 // code-execution config read-only inside the bash subprocess.
 //
-//   1. tmpfs over /var/lib/pullfrog/ — codex auth.json and any future
-//      pullfrog-managed on-disk secret live here (see action/utils/codexHome.ts
-//      PULLFROG_DATA_DIR). opencode's internal auth module runs in the agent
+//   1. tmpfs over /var/lib/reviewx/ — codex auth.json and any future
+//      reviewx-managed on-disk secret live here (see action/utils/codexHome.ts
+//      REVIEWX_DATA_DIR). opencode's internal auth module runs in the agent
 //      process outside this namespace and reads the real file via bypass of
 //      external_directory; bash sees an empty tmpfs. mkdir -p the path
 //      first so the tmpfs always engages — without that, runs without
 //      CODEX_AUTH_JSON wouldn't have bootstrapped the dir, the mountpoint
 //      wouldn't exist, and `mount -t tmpfs` would silent-fail. precreate
 //      keeps the overlay active for any future on-disk secret that lands
-//      under /var/lib/pullfrog regardless of which install path created it.
+//      under /var/lib/reviewx regardless of which install path created it.
 //   2. tmpfs over $RUNNER_TEMP/_runner_file_commands/ — anything bash writes
 //      to $GITHUB_ENV / $GITHUB_PATH / $GITHUB_OUTPUT / $GITHUB_STATE lands in
 //      a per-namespace tmpfs that the GHA runner never sees. our own action
@@ -264,8 +264,8 @@ function buildFsMounts(repoDir: string): string {
   // escape keeps us correct against arbitrary user-configured workspaces.
   const escaped = repoDir.replace(/'/g, "'\\''");
   return [
-    `mkdir -p /var/lib/pullfrog 2>/dev/null;`,
-    `mount -t tmpfs tmpfs /var/lib/pullfrog 2>/dev/null;`,
+    `mkdir -p /var/lib/reviewx 2>/dev/null;`,
+    `mount -t tmpfs tmpfs /var/lib/reviewx 2>/dev/null;`,
     `[ -n "$RUNNER_TEMP" ] && [ -d "$RUNNER_TEMP/_runner_file_commands" ] && mount -t tmpfs tmpfs "$RUNNER_TEMP/_runner_file_commands" 2>/dev/null;`,
     `[ -e '${escaped}/.git' ] && mount --bind '${escaped}/.git' '${escaped}/.git' 2>/dev/null && mount -o remount,bind,ro '${escaped}/.git' 2>/dev/null;`,
     // the corepack shim dir sits FIRST on PATH (utils/packageManager.ts) and
@@ -273,7 +273,7 @@ function buildFsMounts(repoDir: string): string {
     // a `git`/`pnpm` that a later UNSANDBOXED spawn resolves with the parent
     // env. read-only closes that for every sandboxed command at once.
     //
-    // the path is interpolated HERE rather than read as `$PULLFROG_TEMP_DIR`
+    // the path is interpolated HERE rather than read as `$REVIEWX_TEMP_DIR`
     // inside the sandbox: that name is not on the `filterEnv` safe list, so in
     // restricted mode it expands to empty and the mount silently no-ops in the
     // one tier it exists to protect. `$RUNNER_TEMP` above is safe only because
@@ -285,11 +285,11 @@ function buildFsMounts(repoDir: string): string {
     .join(" ");
 }
 
-/** pullfrog-managed hook/gate scripts live in the per-run HOME (tmpdir) and
+/** reviewx-managed hook/gate scripts live in the per-run HOME (tmpdir) and
  * execute with the agent's full environment. the agent runs the sandboxed
  * shell as the uid that OWNS them, so the no_new_privs seal does not stop it
  * rewriting one to capture that env — a leak a token-exfil run found in July.
- * ro-bind each (the names are deterministic under PULLFROG_TEMP_DIR; the action
+ * ro-bind each (the names are deterministic under REVIEWX_TEMP_DIR; the action
  * writes them before the first shell call) so the sandboxed shell cannot. the
  * action process writes them OUTSIDE this namespace, so our own writes are
  * unaffected. native FS tools are denied separately (claude settings deny,
@@ -300,7 +300,7 @@ function buildFsMounts(repoDir: string): string {
  * gap (see wiki/security.md "Scope and Limitations"); the direct rewrite is
  * sealed, the rename variant is not. */
 function hookMounts(): string {
-  const tempDir = process.env.PULLFROG_TEMP_DIR;
+  const tempDir = process.env.REVIEWX_TEMP_DIR;
   if (!tempDir) return "";
   return HOOK_ASSET_TMPDIR_RELPATHS.map((rel) => {
     const path = join(tempDir, rel).replace(/'/g, "'\\''");
@@ -310,7 +310,7 @@ function hookMounts(): string {
 
 /** read-only bind for the corepack shim dir, or "" when this run has no tmpdir. */
 function shimMount(): string {
-  const tempDir = process.env.PULLFROG_TEMP_DIR;
+  const tempDir = process.env.REVIEWX_TEMP_DIR;
   if (!tempDir) return "";
   const dir = join(tempDir, "pm-bin").replace(/'/g, "'\\''");
   return `[ -d '${dir}' ] && mount --bind '${dir}' '${dir}' 2>/dev/null && mount -o remount,bind,ro '${dir}' 2>/dev/null;`;
@@ -361,7 +361,7 @@ function spawnShell(params: SpawnParams): ChildProcess {
         "kernel disallows unprivileged user namespaces (Ubuntu >= 23.10, Bottlerocket, Talos). " +
         "elsewhere, check that `unshare` and `setpriv` (util-linux >= 2.31, which is what " +
         "added --ambient-caps) are on PATH. " +
-        "see https://docs.pullfrog.com/security#self-hosted-runners"
+        "see https://github.com/programistich/reviewx#self-hosted-runners"
     );
   }
 
@@ -414,7 +414,7 @@ function spawnShell(params: SpawnParams): ChildProcess {
     // --mount is EXPLICIT and load-bearing: it is normally implied by --mount-proc,
     // which detectSandboxMethod deliberately omits (see there). without it there is
     // no mount namespace at all and fsMounts silently no-ops — the tmpfs over
-    // /var/lib/pullfrog and the .git ro-bind just vanish, taking the filesystem
+    // /var/lib/reviewx and the .git ro-bind just vanish, taking the filesystem
     // sandbox with them while every other guarantee still appears to hold.
     // --map-current-user is NOT a substitute for --map-root-user: mapping a non-zero
     // uid makes execve use non-root capability rules, so the setup lands with an
@@ -499,9 +499,9 @@ async function killProcessGroup(proc: ChildProcess): Promise<void> {
 }
 
 function getTempDir(): string {
-  const tempDir = process.env.PULLFROG_TEMP_DIR;
+  const tempDir = process.env.REVIEWX_TEMP_DIR;
   if (!tempDir) {
-    throw new Error("PULLFROG_TEMP_DIR not set");
+    throw new Error("REVIEWX_TEMP_DIR not set");
   }
   return tempDir;
 }
@@ -521,7 +521,7 @@ export const MAX_OUTPUT_CHARS = 5000;
  * Shared by `shell` and `gh` so that agent-initiated process execution carries
  * the same mount- and PID-namespace guarantees no matter which tool starts it.
  * A bare `spawnSync` here would escape `PROC_CLEANUP`, `SOCKET_CLEANUP` and
- * `buildFsMounts` — i.e. the tmpfs over `/var/lib/pullfrog` (codex `auth.json`),
+ * `buildFsMounts` — i.e. the tmpfs over `/var/lib/reviewx` (codex `auth.json`),
  * the tmpfs over `$RUNNER_TEMP/_runner_file_commands`, and the `.git` ro-bind —
  * none of which any token's scope bounds.
  */

@@ -37,8 +37,8 @@ function loadFixture<T>(file: string): T {
 }
 
 describe("formatFilesWithLineNumbers", () => {
-  it("generates accurate TOC line numbers for pullfrog/test-repo#1", () => {
-    const fx = loadFixture<DiffFixture>("pullfrog-test-repo-pr-1.diff.json");
+  it("generates accurate TOC line numbers for reviewx/test-repo#1", () => {
+    const fx = loadFixture<DiffFixture>("reviewx-test-repo-pr-1.diff.json");
     const result: FormatFilesResult = formatFilesWithLineNumbers(fx.files);
 
     expect(result.content.startsWith(result.toc)).toBe(true);

@@ -3,10 +3,10 @@ import type { AgentResult, TestRunnerOptions, ValidationCheck } from "../utils.t
 import { defineFixture } from "../utils.ts";
 
 /**
- * MCP merge test - validates repo-level MCP servers merge correctly with pullfrog.
+ * MCP merge test - validates repo-level MCP servers merge correctly with reviewx.
  *
- * Uses GITHUB_REPOSITORY=pullfrog/test-repo-mcp whose robin-mcp reads a secret
- * from /tmp/pullfrog-mcp-secret/secret.txt (outside the repo) and exposes it
+ * Uses GITHUB_REPOSITORY=reviewx/test-repo-mcp whose robin-mcp reads a secret
+ * from /tmp/reviewx-mcp-secret/secret.txt (outside the repo) and exposes it
  * via get_test_value. The runner writes the secret
  * there via repoSetup before the agent starts. Runs with shell disabled.
  */
@@ -37,10 +37,10 @@ export const test: TestRunnerOptions = {
   fixture,
   validator,
   env: {
-    GITHUB_REPOSITORY: "pullfrog/test-repo-mcp",
-    PULLFROG_DISABLE_SECURITY_INSTRUCTIONS: "1",
-    PULLFROG_MCP_SECRET: secret,
+    GITHUB_REPOSITORY: "reviewx/test-repo-mcp",
+    REVIEWX_DISABLE_SECURITY_INSTRUCTIONS: "1",
+    REVIEWX_MCP_SECRET: secret,
   },
   repoSetup:
-    'mkdir -p /tmp/pullfrog-mcp-secret && printf "%s" "$PULLFROG_MCP_SECRET" > /tmp/pullfrog-mcp-secret/secret.txt',
+    'mkdir -p /tmp/reviewx-mcp-secret && printf "%s" "$REVIEWX_MCP_SECRET" > /tmp/reviewx-mcp-secret/secret.txt',
 };

@@ -20,8 +20,8 @@ export interface SetupOptions {
  * disk filled and every job on the runner died.
  */
 export function createTempDirectory(): { path: string; [Symbol.dispose]: () => void } {
-  const path = mkdtempSync(join(tmpdir(), "pullfrog-"));
-  process.env.PULLFROG_TEMP_DIR = path;
+  const path = mkdtempSync(join(tmpdir(), "reviewx-"));
+  process.env.REVIEWX_TEMP_DIR = path;
   log.info(`» created temp dir at ${path}`);
   return { path, [Symbol.dispose]: () => removeTempDirectory(path) };
 }
@@ -53,7 +53,7 @@ function removeTempDirectory(path: string): void {
  * can grep:
  *   - `_runner_file_commands/set_output_*` for `core.setOutput('token', ghs_…)`
  *     calls made by earlier composite-action steps (e.g.
- *     pullfrog/pullfrog/get-installation-token);
+ *     reviewx/reviewx/get-installation-token);
  *   - `<uuid>.sh` rendered step scripts whose `run: |` body embeds
  *     `${{ steps.token.outputs.token }}` literally (GHA expands BEFORE writing);
  *   - `git-credentials-*.config` written by `actions/checkout@v6` for the
@@ -66,7 +66,7 @@ function removeTempDirectory(path: string): void {
  * for OUR step — `$GITHUB_OUTPUT`, `$GITHUB_ENV`, `$GITHUB_PATH`,
  * `$GITHUB_STATE`, `$GITHUB_STEP_SUMMARY`. those are read by the runner
  * AFTER we exit (or by our own `post:` hook), and wiping them would break
- * pullfrog's `result` output, `post:` state handoff, and job summary.
+ * reviewx's `result` output, `post:` state handoff, and job summary.
  *
  * silent no-op when `$RUNNER_TEMP` is unset (local dev, `pnpm play`).
  * per-file errors are tolerated — the runner may delete files between
@@ -304,11 +304,11 @@ export async function configureRepoGit(params: ConfigureRepoGitParams): Promise<
       !currentEmail || currentEmail === "github-actions[bot]@users.noreply.github.com";
 
     if (shouldSetDefaults) {
-      execSync('git config --local user.email "226033991+pullfrog[bot]@users.noreply.github.com"', {
+      execSync('git config --local user.email "226033991+reviewx[bot]@users.noreply.github.com"', {
         cwd: repoDir,
         stdio: "pipe",
       });
-      execSync('git config --local user.name "pullfrog[bot]"', {
+      execSync('git config --local user.name "reviewx[bot]"', {
         cwd: repoDir,
         stdio: "pipe",
       });

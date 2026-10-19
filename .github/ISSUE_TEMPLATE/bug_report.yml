@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for helping improve Pullfrog. Please include enough detail for maintainers to reproduce the issue.
+        Thanks for helping improve ReviewX. Please include enough detail for maintainers to reproduce the issue.
   - type: textarea
     id: summary
     attributes:
@@ -50,7 +50,7 @@ body:
         - Review
         - CI failure
         - Dashboard
-        - "@pullfrog comment"
+        - "@reviewx comment"
         - Other
     validations:
       required: true
@@ -63,7 +63,7 @@ body:
         Repository:
         GitHub Action run link:
         Branch:
-        Pullfrog config (`pullfrog.yml`) relevant section:
+        ReviewX config (`reviewx.yml`) relevant section:
         Agent or provider used:
         Browser:
         OS:

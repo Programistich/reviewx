@@ -20,9 +20,9 @@ describe("renderRunError BYOK provider billing exhausted (#835)", () => {
     });
     expect(result.summary).toContain("`deepseek` account is out of credit");
     expect(result.summary).toContain("https://platform.deepseek.com/top_up");
-    expect(result.summary).toContain("### ❌ Pullfrog failed");
+    expect(result.summary).toContain("### ❌ ReviewX failed");
     expect(result.comment).toContain("`deepseek` account is out of credit");
-    expect(result.comment).not.toContain("### ❌ Pullfrog failed");
+    expect(result.comment).not.toContain("### ❌ ReviewX failed");
   });
 
   it("matches Anthropic 'credit balance is too low' (#835 Anthropic case)", () => {
@@ -115,7 +115,7 @@ describe("renderRunError provider-stated refusals (#1474)", () => {
       "The model provider returned an error",
     ],
     ["The usage limit has been reached", "usage limit for this account has been reached"],
-    // routes against Pullfrog's own OpenRouter balance on a Router run, so it gets no top-up copy
+    // routes against ReviewX's own OpenRouter balance on a Router run, so it gets no top-up copy
     [
       "This request would exceed your available credits given your current in-flight requests. Retry after in-flight requests settle, or add credits.",
       "The model provider returned an error",

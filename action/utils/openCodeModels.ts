@@ -9,7 +9,7 @@
 // new auth shapes; OpenCode itself can't.
 //
 // Two captures per run:
-//   1. `captureBaselineModels` — called BEFORE Pullfrog-stored credentials
+//   1. `captureBaselineModels` — called BEFORE ReviewX-stored credentials
 //      (dbSecrets + Codex auth.json) land in the env. The set OpenCode can
 //      serve from the runner's pre-existing environment alone.
 //   2. `captureAuthorizedModels` — called AFTER dbSecrets merge + Codex
@@ -17,7 +17,7 @@
 //      decisions (validateAgentApiKey).
 //
 // The set difference (`authorized - baseline`) is the contribution of
-// Pullfrog-stored auth to this run — logged once for operator visibility
+// ReviewX-stored auth to this run — logged once for operator visibility
 // and reserved for a future server-side "OSS proxy opt-out" detection.
 //
 // Memoized at module scope so the two consumers
@@ -93,7 +93,7 @@ export function getModelsFailure(): string | undefined {
 }
 
 /** Snapshot the set of models OpenCode can serve from the current env, BEFORE
- * Pullfrog-stored credentials are merged in. Call once early in `main.ts`. */
+ * ReviewX-stored credentials are merged in. Call once early in `main.ts`. */
 export function captureBaselineModels(params: { cliPath: string; tmpdir: string }): void {
   baseline = readModels(params);
   log.debug(`» opencode baseline: ${baseline.size} models`);
@@ -121,7 +121,7 @@ export function authorizeModel(model: string): void {
   getAuthorizedModels().add(model);
 }
 
-/** Authorized set captured after Pullfrog-stored auth is applied. Throws if
+/** Authorized set captured after ReviewX-stored auth is applied. Throws if
  * called before `captureAuthorizedModels` — the call sites (api-key
  * validation, auto-select) all run strictly after capture. */
 export function getAuthorizedModels(): Set<string> {

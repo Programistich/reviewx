@@ -12,7 +12,7 @@ export function getHttpStatus(err: unknown): number | undefined {
 }
 
 /**
- * a Pullfrog MCP tool definition. `mutates` marks a named state-changing tool
+ * a ReviewX MCP tool definition. `mutates` marks a named state-changing tool
  * that must be reserved for the orchestrator and denied to subagents — it is
  * the single source of truth the subagent deny list derives from (see
  * action/agents/subagentToolGates.ts). general-purpose execution tools (`git`,
@@ -21,7 +21,7 @@ export function getHttpStatus(err: unknown): number | undefined {
  * independent scheduler metadata and must only follow an implementation audit;
  * the absence of `mutates` does not imply that a tool is read-only.
  */
-export type PullfrogTool = Tool<any, any> & { mutates?: boolean };
+export type ReviewXTool = Tool<any, any> & { mutates?: boolean };
 
 export const tool = <const params>(
   toolDef: Tool<any, StandardSchemaV1<params>> & { mutates?: boolean }

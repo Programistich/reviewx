@@ -254,7 +254,7 @@ async function ensureBeforeShaReachable(params: EnsureBeforeShaParams): Promise<
     // not available locally — create a temporary branch to fetch it
   }
 
-  const tempBranch = `pullfrog/tmp/${params.sha.slice(0, 12)}`;
+  const tempBranch = `reviewx/tmp/${params.sha.slice(0, 12)}`;
   try {
     log.debug(`» before_sha ${params.sha.slice(0, 7)} not reachable, creating temp branch...`);
     await using _ref = await createTempBranch({
@@ -770,10 +770,10 @@ export function CheckoutPrTool(ctx: ToolContext) {
       signal,
     });
 
-    const tempDir = process.env.PULLFROG_TEMP_DIR;
+    const tempDir = process.env.REVIEWX_TEMP_DIR;
     if (!tempDir) {
       throw new Error(
-        "PULLFROG_TEMP_DIR not set - checkout_pr must run in pullfrog action context"
+        "REVIEWX_TEMP_DIR not set - checkout_pr must run in reviewx action context"
       );
     }
 
@@ -825,8 +825,8 @@ export function CheckoutPrTool(ctx: ToolContext) {
     );
 
     let impactPath: string | undefined;
-    if (process.env.PULLFROG_DISABLE_CHANGE_IMPACT === "1") {
-      log.info("» change impact disabled by PULLFROG_DISABLE_CHANGE_IMPACT");
+    if (process.env.REVIEWX_DISABLE_CHANGE_IMPACT === "1") {
+      log.info("» change impact disabled by REVIEWX_DISABLE_CHANGE_IMPACT");
     } else {
       let revisionVerified = false;
       let revisionFailure: string | undefined;

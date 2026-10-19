@@ -41,8 +41,8 @@ export function readProjectIdFromVertexServiceAccountJson(): string | undefined 
 }
 
 function createSecretDir(): string {
-  const base = process.env.PULLFROG_SECRET_HOME || process.env.HOME || homedir();
-  const secretDir = join(base, ".pullfrog", "secrets", randomUUID());
+  const base = process.env.REVIEWX_SECRET_HOME || process.env.HOME || homedir();
+  const secretDir = join(base, ".reviewx", "secrets", randomUUID());
   mkdirSync(secretDir, { recursive: true, mode: 0o700 });
   return secretDir;
 }

@@ -137,7 +137,7 @@ export async function resolveTokens(params: ResolveTokensParams): Promise<TokenR
     contents: "write",
     pull_requests: "write",
     issues: "write",
-    // write (not read) so the run can post `pullfrog` / `pullfrog-approval`
+    // write (not read) so the run can post `reviewx` / `reviewx-approval`
     // commit-status check-runs for branch protection. the app already grants
     // checks:write; this scopes the MCP token up to use it.
     checks: "write",

@@ -87,7 +87,7 @@ export const GIT_NATIVE_READ_DENY_CLAUDE: string[] = CLAUDE_READ_TOOLS.map(
   (tool) => `${tool}(.git/config)`
 );
 
-// Pullfrog-managed hook/gate/plugin scripts. They live in the per-run tmpdir
+// ReviewX-managed hook/gate/plugin scripts. They live in the per-run tmpdir
 // (== the agent's HOME) and EXECUTE with the agent's full, secret-bearing
 // environment — the Claude PreToolUse gate + Stop hook, and the OpenCode
 // plugins. A prompt-injected agent that rewrites one to print the env exfils

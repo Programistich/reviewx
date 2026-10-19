@@ -1,8 +1,8 @@
 /**
- * Single source of truth for the `pullfrog` commit-status check-run — the row a PR's
+ * Single source of truth for the `reviewx` commit-status check-run — the row a PR's
  * checks list shows while a run is in flight and after it ends.
  *
- * Pullfrog dispatches its workflow with `ref: <default branch>`, so the GitHub Actions
+ * ReviewX dispatches its workflow with `ref: <default branch>`, so the GitHub Actions
  * run attaches its check suite to the default branch head and never to the PR head.
  * Nothing about a run is therefore visible from the PR itself unless we post this
  * check-run against the PR head sha ourselves.
@@ -32,11 +32,11 @@
  * branch protection is unreadable to us, so the blast radius cannot even be measured.
  * See wiki/review-approval.md.
  */
-export const RUN_STATUS_CHECK_NAME = "pullfrog";
+export const RUN_STATUS_CHECK_NAME = "reviewx";
 
 /**
  * GitHub's own Actions app. It publishes a check run per job, named after the
- * job — and the generated workflow's job is also called `pullfrog`, so the
+ * job — and the generated workflow's job is also called `reviewx`, so the
  * collision is structural rather than incidental. Renaming our check is not
  * available: it was tried on 2026-08-02 and blocked merges on four customer
  * repos (see above), so the reuse lookup filters instead. See #1196.
@@ -44,7 +44,7 @@ export const RUN_STATUS_CHECK_NAME = "pullfrog";
 export const GITHUB_ACTIONS_APP_SLUG = "github-actions";
 
 /** the review-verdict check. opt-in, terminal-only, and deliberately separate from the above. */
-export const APPROVAL_CHECK_NAME = "pullfrog-approval";
+export const APPROVAL_CHECK_NAME = "reviewx-approval";
 
 /**
  * The terminal states we report: exactly GitHub's check-run `conclusion` enum.
@@ -136,28 +136,25 @@ export interface RunStatusCheckOctokit {
 }
 
 const IN_PROGRESS_OUTPUT = {
-  title: "Pullfrog is running",
-  summary: "Pullfrog is working on this pull request. This check updates when the run finishes.",
+  title: "ReviewX is running",
+  summary: "ReviewX is working on this pull request. This check updates when the run finishes.",
 };
 
 /**
- * Repo console deep-link, anchored at the Review PRs card that holds the toggle. Origin is
- * hardcoded to match `billingErrors.ts`, the established pattern for console links from the
- * action. Appended last to every non-success summary so a user whose merge is blocked by a
+ * Appended last to every non-success summary so a user whose merge is blocked by a
  * check they never asked for can reach the off switch — but a one-off failure must not read
- * as "the remedy is to turn this off", so the link names the exact toggle and never leads.
+ * as "the remedy is to turn this off", so the line names the exact toggle and never leads.
  */
-function disableCheckLine(owner: string, repo: string): string {
-  const url = `https://pullfrog.com/console/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}#auto-review-prs`;
-  return `\n\nThis check reports run status only and gates nothing unless you required it in branch protection. [Turn off the run status check →](${url})`;
+function disableCheckLine(_owner: string, _repo: string): string {
+  return "\n\nThis check reports run status only and gates nothing unless you required it in branch protection. Set the `status_checks` input to `disabled` to turn it off.";
 }
 
 /**
- * The logs link. GitHub renders `details_url` as "View more details on Pullfrog" whatever it
+ * The logs link. GitHub renders `details_url` as "View more details on ReviewX" whatever it
  * points at, so a summary that says "see the run logs" without linking them leaves the user
  * with no visible way to reach them (measured on a real failed check: the only link in the
  * panel was the off switch). Every finalizer's `detailsUrl` is the Actions run or the
- * pullfrog.com shortlink that redirects to it; undefined means no run ever existed.
+ * undefined means no run ever existed.
  */
 function logsLine(detailsUrl: string | undefined): string {
   return detailsUrl ? `\n\n[View the run logs →](${detailsUrl})` : "";
@@ -165,32 +162,32 @@ function logsLine(detailsUrl: string | undefined): string {
 
 const TERMINAL_OUTPUT: Record<RunStatusCheckConclusion, { title: string; summary: string }> = {
   success: {
-    title: "Pullfrog run completed",
-    summary: "The Pullfrog run finished successfully.",
+    title: "ReviewX run completed",
+    summary: "The ReviewX run finished successfully.",
   },
   failure: {
-    title: "Pullfrog run failed",
-    summary: "The Pullfrog run failed.",
+    title: "ReviewX run failed",
+    summary: "The ReviewX run failed.",
   },
   cancelled: {
-    title: "Pullfrog run cancelled",
-    summary: "The Pullfrog run was cancelled before it finished.",
+    title: "ReviewX run cancelled",
+    summary: "The ReviewX run was cancelled before it finished.",
   },
   timed_out: {
-    title: "Pullfrog run timed out",
-    summary: "The Pullfrog run exceeded its timeout.",
+    title: "ReviewX run timed out",
+    summary: "The ReviewX run exceeded its timeout.",
   },
   action_required: {
-    title: "Pullfrog run needs attention",
-    summary: "The Pullfrog run stopped and needs attention.",
+    title: "ReviewX run needs attention",
+    summary: "The ReviewX run stopped and needs attention.",
   },
   neutral: {
-    title: "Pullfrog run finished",
-    summary: "The Pullfrog run finished without a pass or fail outcome.",
+    title: "ReviewX run finished",
+    summary: "The ReviewX run finished without a pass or fail outcome.",
   },
   skipped: {
-    title: "Pullfrog run skipped",
-    summary: "This run was superseded by another Pullfrog run.",
+    title: "ReviewX run skipped",
+    summary: "This run was superseded by another ReviewX run.",
   },
 };
 
@@ -212,7 +209,7 @@ function terminalOutput(params: {
   // rendered markdown in the check's detail panel. (Check-run `actions` are NOT links:
   // they are buttons that fire `check_run.requested_action`, so they cannot navigate.)
   const review = params.reviewUrl
-    ? `\n\n[View the review Pullfrog posted →](${params.reviewUrl})`
+    ? `\n\n[View the review ReviewX posted →](${params.reviewUrl})`
     : "";
   if (params.conclusion === "success") {
     const note = params.note ? `\n\n${params.note}` : "";
@@ -243,8 +240,8 @@ export async function createRunStatusCheck(params: {
   detailsUrl: string | undefined;
 }): Promise<number | undefined> {
   // reuse an in-flight check on this sha rather than adding a second identical row.
-  // concurrent Pullfrog runs on one head are routine (an auto-review plus an @pullfrog
-  // mention, say), and "is Pullfrog running on this commit?" has one answer, not two.
+  // concurrent ReviewX runs on one head are routine (an auto-review plus an @reviewx
+  // mention, say), and "is ReviewX running on this commit?" has one answer, not two.
   // whichever run finishes first resolves it; the others re-PATCH the same conclusion.
   const existing = await params.octokit.rest.checks
     .listForRef({
@@ -256,8 +253,8 @@ export async function createRunStatusCheck(params: {
     })
     .catch(() => undefined);
   // ...but only a check we can actually PATCH. the generated workflow names its
-  // job `pullfrog`, so GitHub Actions publishes a check run with the SAME name
-  // for every Pullfrog run, owned by app 15368. adopting that one meant our own
+  // job `reviewx`, so GitHub Actions publishes a check run with the SAME name
+  // for every ReviewX run, owned by app 15368. adopting that one meant our own
   // check was never created, `WorkflowRun.checkRunId` pointed at a foreign row,
   // and every close-out path — action, webhook, both reaper sweeps — 403'd with
   // `Invalid app_id 15368`. see #1196.
@@ -284,7 +281,7 @@ export async function createRunStatusCheck(params: {
  *
  * A PATCH, not a second create: `POST /check-runs` with the same name + sha creates a
  * SECOND row rather than replacing the first, so creating twice would show the PR two
- * contradictory `pullfrog` rows. (That is a real bug today — `finalizeSuccessRun` posts
+ * contradictory `reviewx` rows. (That is a real bug today — `finalizeSuccessRun` posts
  * success and a later throw posts failure, both as fresh rows.)
  */
 export async function finalizeRunStatusCheck(params: {
@@ -322,7 +319,7 @@ export async function finalizeRunStatusCheck(params: {
  *
  * The fallback for runs that never got a server-created check to update: a rolling
  * deploy where the dispatch payload predates `checkRun`, or a workflow invoked outside
- * Pullfrog's own dispatch path (`prompt_file`, a hand-written step).
+ * ReviewX's own dispatch path (`prompt_file`, a hand-written step).
  */
 export async function createTerminalRunStatusCheck(params: {
   octokit: RunStatusCheckOctokit;

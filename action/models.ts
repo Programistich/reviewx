@@ -113,7 +113,7 @@ interface ModelDef {
 export interface ProviderConfig {
   displayName: string;
   envVars: readonly string[];
-  /** credentials authored only via `pullfrog auth <provider>` — never
+  /** credentials authored only via `reviewx auth <provider>` — never
    * user-facing in `init`, never documented as a manual GHA secret. counted
    * for hasAnyKey / log-redaction purposes but excluded from any prompt /
    * paste flow. CLI-managed magic. see wiki/codex-auth.md. */
@@ -305,7 +305,7 @@ export const providers = {
     displayName: "xAI",
     envVars: ["XAI_API_KEY"],
     // CLI-only, like CODEX_AUTH_JSON: a Grok subscription chain minted by
-    // `pullfrog auth grok`. Excluded from every paste/prompt surface because
+    // `reviewx auth grok`. Excluded from every paste/prompt surface because
     // the refresh token rotates on every use, so a hand-pasted blob is stale
     // the moment it is saved. See wiki/grok-auth.md.
     managedCredentials: ["GROK_AUTH_JSON"],
@@ -444,7 +444,7 @@ export const providers = {
   // `kimi-code-plan-global` (api.kimi.ai). opencode resolves providers from
   // its models.dev cache, so a `resolve` still spelling the old key names a
   // provider it does not know. the `resolve` targets track models.dev's key;
-  // the provider KEY below is Pullfrog's slug and stays put. see
+  // the provider KEY below is ReviewX's slug and stays put. see
   // wiki/kimi-code.md.
   //
   // NO `openRouterResolve` ON PURPOSE. OpenRouter cannot serve a Kimi
@@ -1112,7 +1112,7 @@ export const providers = {
     // Alibaba DashScope, self-hosted vLLM, or any compatible gateway. base URL +
     // key + model ID are all supplied via env; nothing is cataloged or bumped.
     // the two token limits are deliberately absent: this list is the auth
-    // heuristic (`hasPullfrogStoredAuthForModel`, `validateAgentApiKey`), and a
+    // heuristic (`hasReviewXStoredAuthForModel`, `validateAgentApiKey`), and a
     // stored context number is config, not proof of a key. the console picks
     // them up from `PROVIDER_EXTRA_SECRET_NAMES` instead.
     envVars: ["OPENAI_COMPATIBLE_BASE_URL", "OPENAI_COMPATIBLE_API_KEY", "OPENAI_COMPATIBLE_MODEL"],
@@ -1307,7 +1307,7 @@ export const providers = {
         openRouterResolve: "openrouter/minimax/minimax-m3",
       },
       // OpenRouter gates Meta models on an ACCOUNT-level 18+ confirmation
-      // (openrouter.ai/settings/preferences). Pullfrog's account has it, so the
+      // (openrouter.ai/settings/preferences). ReviewX's account has it, so the
       // Router path runs; a BYOK OpenRouter key without it refuses with that
       // link before the request reaches Meta. see wiki/muse-spark.md.
       "muse-spark": {
@@ -1480,7 +1480,7 @@ export function getModelEnvVars(slug: string): string[] {
   return providerConfig.envVars.slice();
 }
 
-/** managed credentials are authored only via `pullfrog auth <provider>` — they
+/** managed credentials are authored only via `reviewx auth <provider>` — they
  * count as "configured" for hasAnyKey-style UI checks but are never offered as
  * a manual-paste option in `init` or the AgentSettings env-var button row.
  * see `provider.managedCredentials` and wiki/codex-auth.md. */
@@ -1548,7 +1548,7 @@ export function modelHasStoredAuth(params: { model: string; secretNames: string[
 
 /**
  * `proxyOptOut`, spelled the way run-context spells it: a Router run skips the
- * mint when the pick is FREE or a Pullfrog-stored key covers it, and then runs
+ * mint when the pick is FREE or a ReviewX-stored key covers it, and then runs
  * as-configured rather than clamping to the auto tier.
  *
  * one predicate for every reader — the console picker's `customLocked`, the
@@ -1751,7 +1751,7 @@ export const ROUTER_LADDER: Ladder = {
 
 /**
  * the `repo.model` sentinel that turns the router on: `auto/<provider>` runs
- * each piece of work on that provider's ladder, `auto/router` on the Pullfrog
+ * each piece of work on that provider's ladder, `auto/router` on the ReviewX
  * Router's. distinct from the two managed tiers above, which each name ONE
  * model. a Pro feature — outside Pro the sentinel simply runs its ladder's
  * `standard` rung, which is what `resolveDisplayAlias` resolves it to.
@@ -1943,7 +1943,7 @@ for (const [name, ladder] of Object.entries({ ...PROVIDER_LADDERS, router: ROUTE
 // ── OSS allowlist ──────────────────────────────────────────────────────────────
 
 /**
- * the models Pullfrog is willing to fund on the OSS program. an accepted OSS
+ * the models ReviewX is willing to fund on the OSS program. an accepted OSS
  * repo may pick any of these and run-context honors the pick; anything else
  * falls back to `DEFAULT_PROXY_MODEL`, so a subsidized run can never land on a
  * frontier model.
@@ -1975,7 +1975,7 @@ for (const [name, ladder] of Object.entries({ ...PROVIDER_LADDERS, router: ROUTE
 // but the sentences AROUND them are hand-written, so re-read all four:
 //   - `app/for-oss/page.tsx` (derived) — the pitch + the OG/meta blurb.
 //   - `emails/ossAccepted.ts` (derived) — what an accepted maintainer holds us to.
-//   - `docs/models.mdx` (hand-written) — the "Pullfrog for OSS" table.
+//   - `docs/models.mdx` (hand-written) — the "ReviewX for OSS" table.
 //   - `app/blog/ModelUsageSection.tsx` (hand-written) — the pricing-post aside.
 // the two derived ones are derived because #1190 updated the other two and
 // missed these, leaving the application page selling one model the program had
@@ -2142,7 +2142,7 @@ export function getProviderGatewayUrl(specifier: string | undefined): string | u
 
 /**
  * the Bedrock model ID passed to claude-code or opencode is whatever the
- * user set in `BEDROCK_MODEL_ID` — Pullfrog never resolves or upgrades it.
+ * user set in `BEDROCK_MODEL_ID` — ReviewX never resolves or upgrades it.
  * we route by checking whether the ID names an Anthropic model: claude-code
  * handles Anthropic-on-Bedrock natively (with `CLAUDE_CODE_USE_BEDROCK=1`),
  * everything else goes through opencode's `amazon-bedrock` provider.
@@ -2162,7 +2162,7 @@ export function getProviderGatewayUrl(specifier: string | undefined): string | u
  * every published foundation ID and is conservative for ARN-form IDs: ARN
  * names that don't include "anthropic" as their own dot-segment route to
  * opencode by default. operators using ARN-form IDs whose backing model is
- * Anthropic should set `PULLFROG_AGENT=claude` to force the right route, or
+ * Anthropic should set `REVIEWX_AGENT=claude` to force the right route, or
  * include the foundation segment in the profile name.
  */
 export function isBedrockAnthropicId(bedrockModelId: string): boolean {

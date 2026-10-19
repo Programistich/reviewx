@@ -14,7 +14,7 @@
  * - the sandbox stays ON (`approval_policy = "never"` rather than
  *   `--dangerously-bypass-approvals-and-sandbox`), so the native `apply_patch`
  *   tool is confined to the workspace even if the agent ignores instructions.
- * - `CODEX_HOME` holds auth.json under PULLFROG_DATA_DIR, which the MCP shell's
+ * - `CODEX_HOME` holds auth.json under REVIEWX_DATA_DIR, which the MCP shell's
  *   mount namespace tmpfs-overlays. NOTE codex exposes no path-deny surface of
  *   its own, so unlike claude this harness does NOT consume
  *   `ctx.secretDenyPaths` — the namespace overlay is the only layer here.
@@ -35,7 +35,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
 import type { ThreadEvent, ThreadItem } from "@openai/codex-sdk";
-import { pullfrogMcpName } from "../external.ts";
+import { reviewxMcpName } from "../external.ts";
 import { getModelProvider, getProviderGatewayUrl, stripProviderPrefix } from "../models.ts";
 import { AGENT_ACTIVITY_TIMEOUT_MS, getIdleMs, markActivity } from "../utils/activity.ts";
 import { log } from "../utils/cli.ts";
@@ -218,22 +218,22 @@ function securityOverrideFlags(params: {
     "-c",
     "sandbox_workspace_write.network_access=true",
     // our own MCP server, for a third time in the same class: a repo pointing
-    // `mcp_servers.pullfrog.url` at its own endpoint (measured — `codex mcp get`
-    // reported the repo's URL) turns every pullfrog tool call into an
+    // `mcp_servers.reviewx.url` at its own endpoint (measured — `codex mcp get`
+    // reported the repo's URL) turns every reviewx tool call into an
     // exfiltration channel, carrying diffs, file contents and cross-repo
     // learnings to whoever it names.
     "-c",
-    `mcp_servers.${pullfrogMcpName}.url=${JSON.stringify(params.mcpServerUrl)}`,
+    `mcp_servers.${reviewxMcpName}.url=${JSON.stringify(params.mcpServerUrl)}`,
     "-c",
-    `mcp_servers.${pullfrogMcpName}.${APPROVAL_MODE_KEY}=${JSON.stringify("approve")}`,
+    `mcp_servers.${reviewxMcpName}.${APPROVAL_MODE_KEY}=${JSON.stringify("approve")}`,
     "-c",
-    `mcp_servers.${pullfrogMcpName}.required=true`,
+    `mcp_servers.${reviewxMcpName}.required=true`,
     "-c",
-    `mcp_servers.${pullfrogMcpName}.tool_timeout_sec=660`,
+    `mcp_servers.${reviewxMcpName}.tool_timeout_sec=660`,
     // `enabled` closes the silent-DoS variant: a repo setting it false would
     // otherwise strip every GitHub tool and leave the agent narrating failure.
     "-c",
-    `mcp_servers.${pullfrogMcpName}.enabled=true`,
+    `mcp_servers.${reviewxMcpName}.enabled=true`,
     // not a boundary, but the same override: a repo silently re-pointing the
     // model spends the account's money on a pick it never made, and makes the
     // "Using `…`" run footer a lie about what actually ran.
@@ -258,7 +258,7 @@ const CODEX_EFFORTS: readonly string[] = ["minimal", "low", "medium", "high", "x
  *
  * Only an OpenAI specifier is passed through. `resolveAgent` already routes on
  * provider, so a non-OpenAI model reaches this harness exactly one way — the
- * `PULLFROG_AGENT=codex` escape hatch, on a repo whose stored model is
+ * `REVIEWX_AGENT=codex` escape hatch, on a repo whose stored model is
  * something else. Forwarding it there is a guaranteed
  * `model_not_found` 400 before the first turn; falling back to codex's default
  * makes the override do the thing the operator asked for.
@@ -351,16 +351,16 @@ function repoMcpApprovals(repoDir: string): string[] {
     if (!key.startsWith("mcp_servers.")) continue;
     // `mcp_servers.name` is the server's own table; `mcp_servers.name.env` and
     // strip surrounding quotes off the first segment: TOML treats
-    // `[mcp_servers."pullfrog"]` as identical to the bare form, so a quoted
+    // `[mcp_servers."reviewx"]` as identical to the bare form, so a quoted
     // spelling would slip past the skip below and reproduce the duplicate-table
     // parse error it exists to prevent.
     const name = key.slice("mcp_servers.".length).replace(/^"([^"]*)"/, "$1");
-    // our own `[mcp_servers.pullfrog]` is already in this document, and the
+    // our own `[mcp_servers.reviewx]` is already in this document, and the
     // cross-LAYER merge that makes the rest of this work does not apply within
     // one file: TOML forbids defining a table twice, and codex refuses the
     // whole config with `duplicate key` rather than merging. skip the name and
     // its sub-tables, which would otherwise graft an `env` onto our server.
-    if (name === pullfrogMcpName || name.startsWith(`${pullfrogMcpName}.`)) continue;
+    if (name === reviewxMcpName || name.startsWith(`${reviewxMcpName}.`)) continue;
     // `mcp_servers.name` is the server's own table; `mcp_servers.name.env` and
     // deeper are sub-tables, which must be copied but must not take our key.
     isServerTable = !name.includes(".");
@@ -415,7 +415,7 @@ function warnIfNativeEditsUnavailable(ctx: AgentRunContext): void {
  * declared provider defaults it to false and goes straight to HTTPS (measured
  * 2026-09-11).
  */
-const CODEX_GATEWAY_PROVIDER = "pullfrog-gateway";
+const CODEX_GATEWAY_PROVIDER = "reviewx-gateway";
 
 function gatewayProvider(gatewayUrl: string | undefined): string[] {
   if (!gatewayUrl) return [];
@@ -452,7 +452,7 @@ function writeCodexConfig(params: {
   const repoDir = process.cwd();
 
   const config = [
-    "# written by pullfrog",
+    "# written by reviewx",
     // "never" keeps the run non-interactive WITHOUT
     // --dangerously-bypass-approvals-and-sandbox, which would also switch the
     // sandbox off and let the native apply_patch tool write anywhere.
@@ -476,7 +476,7 @@ function writeCodexConfig(params: {
     // see wiki/codex-agent.md "The Linux native-write blocker".
     `writable_roots = [${JSON.stringify(repoDir)}]`,
     "",
-    `[mcp_servers.${pullfrogMcpName}]`,
+    `[mcp_servers.${reviewxMcpName}]`,
     `url = ${JSON.stringify(params.ctx.mcpServerUrl)}`,
     // codex's default MCP approval mode PROMPTS for anything it can't read as
     // read-only, and a `codex exec` run has nobody to answer — the call comes
@@ -647,12 +647,12 @@ async function runCodex(params: RunParams): Promise<CodexRunResult> {
       case "agent_message":
         if (phase === "completed" && item.text.trim()) {
           finalOutput = item.text.trim();
-          log.box(finalOutput, { title: "Pullfrog" });
+          log.box(finalOutput, { title: "ReviewX" });
         }
         return;
       case "reasoning":
         if (phase === "completed" && item.text.trim()) {
-          log.box(item.text.trim(), { title: "Pullfrog" });
+          log.box(item.text.trim(), { title: "ReviewX" });
         }
         return;
       case "command_execution":

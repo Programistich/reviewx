@@ -5,7 +5,7 @@ import { type } from "arktype";
 import * as yes from "yes";
 import { resolveBodyAssets } from "../utils/body.ts";
 import { stripExistingFooter } from "../utils/footer.ts";
-import { isPullfrog } from "../utils/isPullfrog.ts";
+import { isReviewx } from "../utils/isReviewx.ts";
 import { log } from "../utils/log.ts";
 import type { ToolContext } from "./server.ts";
 import { execute, tool } from "./shared.ts";
@@ -500,7 +500,7 @@ const fetchAllReviewThreads = yes.query({
     let cursor: string | null = null;
     // bound the walk so a misbehaving cursor can't loop forever; 50 pages =
     // 5000 threads, orders of magnitude beyond any real PR. same bound as
-    // `countOutstandingPullfrogThreads`.
+    // `countOutstandingReviewXThreads`.
     for (let page = 0; page < 50; page += 1) {
       const response: ReviewThreadsQueryResponse = await ctx.octokit.graphql(REVIEW_THREADS_QUERY, {
         owner: key.owner,
@@ -599,12 +599,12 @@ async function getReviewThreads(input: GetReviewDataInput) {
  *
  * Three exclusions, each load-bearing:
  *   - resolved threads are done, and re-opening that conversation is noise.
- *   - a thread Pullfrog has already spoken in was handled by an earlier run.
+ *   - a thread ReviewX has already spoken in was handled by an earlier run.
  *     That deliberately includes the pushbacks AddressReviews leaves open for a
  *     human to mediate — re-addressing one re-litigates a settled disagreement —
- *     and it is also what stops this mode replying to Pullfrog's own reviews.
+ *     and it is also what stops this mode replying to ReviewX's own reviews.
  *   - under `mentions` a concurrent thread is in scope only if it actually asked
- *     for Pullfrog. Deliberately asymmetric with `threadsForReview`, which is
+ *     for ReviewX. Deliberately asymmetric with `threadsForReview`, which is
  *     returned whole and always was: the dispatching review is the one the
  *     server already adjudicated, and the agent needs its unmentioned threads as
  *     context for the comment that did mention it. Which of those to ACT on stays
@@ -624,25 +624,25 @@ export function concurrentThreads(
 
     const comments = thread.comments.nodes.filter((c): c is ReviewThreadComment => c !== null);
     if (comments.length === 0) return false;
-    if (comments.some((c) => isPullfrog(c.author?.login))) return false;
+    if (comments.some((c) => isReviewx(c.author?.login))) return false;
 
-    return input.addressScope === "all" || comments.some((c) => mentionsPullfrog(c.body));
+    return input.addressScope === "all" || comments.some((c) => mentionsReviewX(c.body));
   });
 }
 
 /**
  * Mirrors the server-side `containsTriggerPhrase` gate that decided this run was
  * dispatched at all: blockquoted mentions don't count, so quoting someone else's
- * `@pullfrog` while replying doesn't pull an unrelated thread into scope.
+ * `@reviewx` while replying doesn't pull an unrelated thread into scope.
  */
-function mentionsPullfrog(body: string | null | undefined): boolean {
+function mentionsReviewX(body: string | null | undefined): boolean {
   if (!body) return false;
   return body
     .split(/\r?\n/)
     .filter((line) => !line.trim().startsWith(">"))
     .join("\n")
     .toLowerCase()
-    .includes("@pullfrog");
+    .includes("@reviewx");
 }
 
 interface GetReviewDataInput {
@@ -654,7 +654,7 @@ interface GetReviewDataInput {
   approvedBy?: string | undefined;
   /**
    * Widen the read past the dispatching review to the other open threads on the
-   * PR — `all` on a Pullfrog-authored PR, `mentions` when only `@pullfrog`-
+   * PR — `all` on a ReviewX-authored PR, `mentions` when only `@reviewx`-
    * mentioning threads are in scope. Absent (console `fix_review`, and any
    * payload from a server build that predates the field) keeps the read scoped
    * to the dispatching review exactly as before.
@@ -881,9 +881,9 @@ export function GetReviewCommentsTool(ctx: ToolContext) {
 
       const { threadBlocks, reviewer, formatted } = result;
 
-      const tempDir = process.env.PULLFROG_TEMP_DIR;
+      const tempDir = process.env.REVIEWX_TEMP_DIR;
       if (!tempDir) {
-        throw new Error("PULLFROG_TEMP_DIR not set");
+        throw new Error("REVIEWX_TEMP_DIR not set");
       }
       const filename = `review-${params.review_id}-threads.md`;
       const commentsPath = join(tempDir, filename);

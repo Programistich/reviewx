@@ -2,7 +2,7 @@ import type { RestEndpointMethodTypes } from "@octokit/rest";
 import type { ToolContext } from "../mcp/server.ts";
 import { primaryRepoState } from "../toolState.ts";
 import { log } from "./cli.ts";
-import { countOutstandingPullfrogThreads } from "./outstandingThreads.ts";
+import { countOutstandingReviewXThreads } from "./outstandingThreads.ts";
 import {
   APPROVAL_CHECK_NAME,
   createTerminalRunStatusCheck,
@@ -13,15 +13,15 @@ import {
 } from "./runStatusCheck.ts";
 
 /**
- * post the `pullfrog` (run lifecycle) and `pullfrog-approval` (review verdict)
+ * post the `reviewx` (run lifecycle) and `reviewx-approval` (review verdict)
  * commit-status check-runs.
  *
- *   - `Pullfrog` is on by default (`Repo.statusChecks`). the server already created it
+ *   - `ReviewX` is on by default (`Repo.statusChecks`). the server already created it
  *     `in_progress` at dispatch, so the work here is a PATCH to its terminal conclusion —
  *     see `runStatusCheck.ts` for why a second create would leave two contradictory rows.
  *     the terminal-create fallback covers a payload with no `checkRun` (older server
- *     build mid-rolling-deploy, or a workflow driven outside Pullfrog's dispatch path).
- *   - `pullfrog-approval` stays opt-in (`Repo.approvalCheck`, default off) and terminal-only:
+ *     build mid-rolling-deploy, or a workflow driven outside ReviewX's dispatch path).
+ *   - `reviewx-approval` stays opt-in (`Repo.approvalCheck`, default off) and terminal-only:
  *     it asserts a review verdict, which only exists once a run produces one. anchored
  *     to the exact reviewed sha so a mid-run push leaves the new head unapproved until
  *     a follow-up re-review reports. a re-review that submits no review carries the
@@ -109,7 +109,7 @@ export async function reportStatusChecks(
 
   // only assert an approval verdict when the run cleanly completed. the verdict is
   // recorded before create_pull_request_review actually submits, so on a failed/crashed
-  // run the review may not have landed — leave pullfrog-approval absent (the next run
+  // run the review may not have landed — leave reviewx-approval absent (the next run
   // resolves it) rather than post a stale verdict.
   if (!needsApprovalCheck) return;
 
@@ -129,11 +129,11 @@ export async function reportStatusChecks(
     status: "completed",
     conclusion: verdict.wouldApprove ? "success" : "failure",
     output: {
-      title: verdict.wouldApprove ? "Pullfrog would approve" : "Pullfrog would not approve",
+      title: verdict.wouldApprove ? "ReviewX would approve" : "ReviewX would not approve",
       summary:
         (verdict.wouldApprove
-          ? "Pullfrog has no outstanding review feedback on this PR."
-          : "Pullfrog has outstanding review feedback or requested changes on this PR.") +
+          ? "ReviewX has no outstanding review feedback on this PR."
+          : "ReviewX has outstanding review feedback or requested changes on this PR.") +
         verdict.carriedLine,
     },
   };
@@ -146,11 +146,11 @@ export async function reportStatusChecks(
 
 /**
  * the verdict for a re-review that submitted no review. recording none left a PR requiring
- * `pullfrog-approval` blocked on "Expected — Waiting for status to be reported" after every
+ * `reviewx-approval` blocked on "Expected — Waiting for status to be reported" after every
  * base-branch merge. the verdict on `beforeSha` carries to the checked-out commit, and never
  * one from further back, which would approve changes no run reviewed. a rejection always
  * carries. an approval carries only when the agent declared this commit needs no review
- * (`no_review_needed`) and no Pullfrog finding is open: a run blocked mid-review also ends
+ * (`no_review_needed`) and no ReviewX finding is open: a run blocked mid-review also ends
  * on `report_progress`, so ending there proves nothing.
  */
 async function carriedApproval(ctx: ToolContext, pullNumber: number) {
@@ -167,13 +167,13 @@ async function carriedApproval(ctx: ToolContext, pullNumber: number) {
   }
   if (ctx.toolState.noReviewNeededSha !== primary.checkoutSha) return undefined;
   return {
-    wouldApprove: (await countOutstandingPullfrogThreads(ctx, pullNumber)) === 0,
+    wouldApprove: (await countOutstandingReviewXThreads(ctx, pullNumber)) === 0,
     sha: primary.checkoutSha,
-    carriedLine: `\n\nPullfrog found nothing to review in the commits since ${from}.`,
+    carriedLine: `\n\nReviewX found nothing to review in the commits since ${from}.`,
   };
 }
 
-/** the conclusion of the newest `pullfrog-approval` on `ref`, if one was posted. */
+/** the conclusion of the newest `reviewx-approval` on `ref`, if one was posted. */
 async function latestApprovalConclusion(ctx: ToolContext, ref: string) {
   const result = await ctx.octokit.rest.checks.listForRef({
     owner: ctx.repo.owner,
@@ -182,7 +182,7 @@ async function latestApprovalConclusion(ctx: ToolContext, ref: string) {
     check_name: APPROVAL_CHECK_NAME,
     status: "completed",
   });
-  // a workflow job of the same name posts as GitHub Actions — never a verdict Pullfrog issued.
+  // a workflow job of the same name posts as GitHub Actions — never a verdict ReviewX issued.
   const latest = result.data.check_runs
     .filter((run) => run.app?.slug !== GITHUB_ACTIONS_APP_SLUG)
     .sort((a, b) => (b.completed_at ?? "").localeCompare(a.completed_at ?? ""))[0];

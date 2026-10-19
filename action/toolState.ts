@@ -150,15 +150,15 @@ export interface ToolState {
     nodeId: string;
     reviewedSha: string | undefined;
   };
-  // approval verdict recorded by create_pull_request_review: whether Pullfrog
+  // approval verdict recorded by create_pull_request_review: whether ReviewX
   // would approve this PR (the agent's `approved` intent AND no outstanding
-  // unresolved Pullfrog-originated review threads). drives the opt-in
-  // `pullfrog-approval` commit-status check posted at run end. distinct from
+  // unresolved ReviewX-originated review threads). drives the opt-in
+  // `reviewx-approval` commit-status check posted at run end. distinct from
   // `review` (which postReviewCleanup deletes) so it survives to finalize.
   // `sha` is the sha the agent reviewed, so the check anchors to it rather
   // than to a head that may have moved mid-run.
   // `url` is the submitted review's html_url when one landed — the artifact a
-  // reader most wants from the `Pullfrog` check, so it is surfaced as a link in
+  // reader most wants from the `ReviewX` check, so it is surfaced as a link in
   // that check's summary. absent when the run produced no review.
   approval?: { wouldApprove: boolean; sha: string | undefined; url?: string | undefined };
   // the checkoutSha that report_progress's `no_review_needed` declared needs no review —

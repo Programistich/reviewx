@@ -50,7 +50,7 @@ function revokeGitHubToken(token: string): void {
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: "application/vnd.github+json",
-      "User-Agent": "pullfrog",
+      "User-Agent": "reviewx",
     },
   }).then(
     (r) => log.info(`token revocation response: ${r.status}`),

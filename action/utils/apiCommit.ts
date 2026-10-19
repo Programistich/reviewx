@@ -339,7 +339,7 @@ export async function createSignedCommit(params: {
   }
 
   // no author/committer fields: that's the documented condition for GitHub
-  // to sign the commit server-side as the app (author = pullfrog[bot]).
+  // to sign the commit server-side as the app (author = reviewx[bot]).
   const commitResult = await gh({
     token: params.token,
     method: "POST",

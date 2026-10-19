@@ -1,7 +1,7 @@
 /**
  * Provider-agnostic OAuth primitives shared by the Codex and Grok chains.
  * Pure stdlib (Buffer) so both the action runtime and the Next.js server can
- * import it via pullfrog/internal.
+ * import it via reviewx/internal.
  *
  * Both chains mint JWT access tokens whose `exp` we read as a freshness hint,
  * and both rotate their refresh token on every use — so both need the same

@@ -1,5 +1,5 @@
 /**
- * model-smoke: per-alias resolution + auth check that bypasses the Pullfrog
+ * model-smoke: per-alias resolution + auth check that bypasses the ReviewX
  * harness. resolves a model alias to its concrete provider/model + agent CLI,
  * invokes the CLI directly with a trivial "reply OK" prompt, and asserts the
  * provider replied. validates exactly the surface that changes when models.ts
@@ -12,7 +12,7 @@
  *
  * usage:
  *   node action/test/model-smoke.ts --slug openai/gpt
- *   PULLFROG_MODEL=openai/gpt node action/test/model-smoke.ts
+ *   REVIEWX_MODEL=openai/gpt node action/test/model-smoke.ts
  */
 import { spawn } from "node:child_process";
 import { mkdtempSync } from "node:fs";
@@ -52,8 +52,8 @@ const TIMEOUT_MS = 240_000;
 function parseSlug(): string {
   const argIdx = process.argv.indexOf("--slug");
   if (argIdx >= 0 && process.argv[argIdx + 1]) return process.argv[argIdx + 1];
-  if (process.env.PULLFROG_MODEL) return process.env.PULLFROG_MODEL;
-  throw new Error("model-smoke: pass --slug <alias> or set PULLFROG_MODEL");
+  if (process.env.REVIEWX_MODEL) return process.env.REVIEWX_MODEL;
+  throw new Error("model-smoke: pass --slug <alias> or set REVIEWX_MODEL");
 }
 
 type Plan =
@@ -65,7 +65,7 @@ async function plan(slug: string): Promise<Plan> {
   if (!alias) throw new Error(`model-smoke: unknown alias "${slug}"`);
   if (alias.routing) {
     throw new Error(
-      `model-smoke: ${slug} is a routing slug (no fixed model). pass an explicit Bedrock model ID via PULLFROG_MODEL or the workflow env block.`
+      `model-smoke: ${slug} is a routing slug (no fixed model). pass an explicit Bedrock model ID via REVIEWX_MODEL or the workflow env block.`
     );
   }
 
@@ -232,10 +232,10 @@ async function main(): Promise<void> {
   const tempDir = mkdtempSync(join(tmpdir(), "model-smoke-"));
   const homeDir = join(tempDir, "home");
 
-  // installFromNpmTarball reads PULLFROG_TEMP_DIR from process.env, not from
+  // installFromNpmTarball reads REVIEWX_TEMP_DIR from process.env, not from
   // the spawn env, so we mutate process.env up-front. HOME/XDG_CONFIG_HOME are
   // redirected to keep the agent CLIs from picking up the dev user's config.
-  process.env.PULLFROG_TEMP_DIR = tempDir;
+  process.env.REVIEWX_TEMP_DIR = tempDir;
   process.env.HOME = homeDir;
   process.env.XDG_CONFIG_HOME = join(homeDir, ".config");
   // opencode reads GOOGLE_GENERATIVE_AI_API_KEY for gemini; mirror the harness fallback.

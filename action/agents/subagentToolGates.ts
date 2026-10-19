@@ -24,8 +24,8 @@
  *   - opencode: `tool.execute.before` (action/agents/opencodePlugin.ts)
  *   - claude:   `PreToolUse` settings hook (action/agents/claudePretoolGate.ts)
  * Names are the canonical bare form (the FastMCP tool `name`). Each runtime
- * presents them with a different prefix (`mcp__pullfrog__<name>` for claude,
- * `pullfrog_<name>` for opencode); the hooks strip the prefix before comparing.
+ * presents them with a different prefix (`mcp__reviewx__<name>` for claude,
+ * `reviewx_<name>` for opencode); the hooks strip the prefix before comparing.
  */
 
 import { buildOrchestratorTools, type ToolContext } from "../mcp/server.ts";

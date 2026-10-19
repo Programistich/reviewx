@@ -5,7 +5,7 @@ import { type } from "arktype";
 import { type AuthorPermission, type PayloadEvent, parseEffortPosition } from "../external.ts";
 import packageJson from "../package.json" with { type: "json" };
 import { log } from "./cli.ts";
-import { isPullfrog } from "./isPullfrog.ts";
+import { isReviewx } from "./isReviewx.ts";
 import type { RepoSettings } from "./runContext.ts";
 import { validateCompatibility } from "./versioning.ts";
 
@@ -19,7 +19,7 @@ const DebugInput = type.enumerated("disabled", "enabled");
 // note: permissions are intentionally NOT included here to prevent injection attacks
 // permissions are derived from event.authorPermission instead
 export const JsonPayload = type({
-  "~pullfrog": "true",
+  "~reviewx": "true",
   version: "string",
   // the server's run type, forwarded verbatim to run-context. optional so a
   // payload from an older server build still parses against a newer action.
@@ -92,7 +92,7 @@ export type ResolvedPromptInput = string | typeof JsonPayload.infer;
  * the whole point is a payload that no longer parses. a plain substring rather than a
  * regex, so it doubles as the cheap pre-filter and as an honest scan bound.
  */
-const DISPATCH_PAYLOAD_KEY = '"~pullfrog"';
+const DISPATCH_PAYLOAD_KEY = '"~reviewx"';
 
 /**
  * the complete JSON object starting at `open`, or undefined when its braces never balance.
@@ -122,7 +122,7 @@ function sliceBalancedObject(text: string, open: number): string | undefined {
  * exact rather than heuristic, and that distinction is the whole point: `prompt` is a public
  * arbitrary-string input, so any predicate looser than "this parses as a real envelope"
  * refuses prompts that merely QUOTE one — and the people most likely to write such a prompt
- * are whoever is working on this file. `{"~pullfrog": true, "version": "1.2.3"}` fails
+ * are whoever is working on this file. `{"~reviewx": true, "version": "1.2.3"}` fails
  * `JsonPayload` (no `prompt`) and passes through; a genuinely mangled dispatch does not.
  *
  * EVERY `{` before the LAST marker is tried, because a preamble may quote an abbreviated
@@ -168,11 +168,11 @@ function findEmbeddedDispatchPayload(text: string): unknown {
 function assertDispatchPayloadIntact(promptInput: string): void {
   if (!findEmbeddedDispatchPayload(promptInput)) return;
   throw new Error(
-    "this workflow wraps `${{ inputs.prompt }}` in other text, so Pullfrog's dispatch payload " +
+    "this workflow wraps `${{ inputs.prompt }}` in other text, so ReviewX's dispatch payload " +
       "can't be read and the run would lose its pull request context, its progress comment, and " +
-      "its standing instructions. in `.github/workflows/pullfrog.yml`, set `prompt:` to exactly " +
+      "its standing instructions. in `.github/workflows/reviewx.yml`, set `prompt:` to exactly " +
       "`${{ inputs.prompt }}`, and move your own preamble into Standing instructions in the " +
-      "Pullfrog console."
+      "ReviewX console."
   );
 }
 
@@ -185,7 +185,7 @@ export function resolvePromptInput(): ResolvedPromptInput {
   }
 
   // a prompt file holds a human-authored prompt, so it is returned verbatim and
-  // never parsed as an internal pullfrog JSON dispatch payload.
+  // never parsed as an internal reviewx JSON dispatch payload.
   if (promptFile) {
     return resolvePromptFile(promptFile);
   }
@@ -201,11 +201,11 @@ export function resolvePromptInput(): ResolvedPromptInput {
     // JSON parse error is fine (plain text prompt)
   }
 
-  if (!parsed || typeof parsed !== "object" || !("~pullfrog" in parsed)) {
+  if (!parsed || typeof parsed !== "object" || !("~reviewx" in parsed)) {
     // both ways of getting here — unparseable, or parsed but not ours — are also how a
     // MANGLED dispatch payload arrives, which is fatal rather than plain text.
     assertDispatchPayloadIntact(promptInput);
-    // if it doesn't look like a pullfrog payload, return the plain text prompt
+    // if it doesn't look like a reviewx payload, return the plain text prompt
     return promptInput;
   }
 
@@ -280,7 +280,7 @@ export function resolvePayload(
   // build payload - precedence: inputs > repoSettings > fallbacks
   // note: modes are NOT in payload - they come from repoSettings in main()
   return {
-    "~pullfrog": true as const,
+    "~reviewx": true as const,
     version: jsonPayload?.version ?? packageJson.version,
     model,
     effort,
@@ -289,7 +289,7 @@ export function resolvePayload(
     triggerer:
       jsonPayload?.triggerer ??
       // it's not a common use case but GITHUB_ACTOR can be a user when the workflow is manually triggered by a user through GitHub Actions UI
-      (!isPullfrog(process.env.GITHUB_ACTOR) ? process.env.GITHUB_ACTOR : undefined),
+      (!isReviewx(process.env.GITHUB_ACTOR) ? process.env.GITHUB_ACTOR : undefined),
     baseInstructions: jsonPayload?.baseInstructions ?? repoSettings.baseInstructions ?? undefined,
     eventInstructions: jsonPayload?.eventInstructions,
     previousRunsNote: jsonPayload?.previousRunsNote,

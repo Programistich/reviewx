@@ -23,7 +23,7 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
-import { pullfrogMcpName } from "../external.ts";
+import { reviewxMcpName } from "../external.ts";
 import {
   BEDROCK_MODEL_ID_ENV,
   isVertexAnthropicId,
@@ -89,7 +89,7 @@ async function installClaudeCli(): Promise<string> {
 
 /**
  * Native claude-code tools that execute arbitrary shell/code and therefore
- * bypass Pullfrog's security boundary (the restricted MCP `shell` tool with a
+ * bypass ReviewX's security boundary (the restricted MCP `shell` tool with a
  * filtered, secret-free env). These run inside the agent process with full env,
  * so leaving any of them enabled defeats both `shell: "disabled"` AND the
  * env-filtering that the MCP shell relies on even when shell is enabled.
@@ -145,7 +145,7 @@ function writeMcpConfig(ctx: AgentRunContext): string {
     configPath,
     JSON.stringify({
       mcpServers: {
-        [pullfrogMcpName]: { type: "http", url: ctx.mcpServerUrl },
+        [reviewxMcpName]: { type: "http", url: ctx.mcpServerUrl },
       },
     })
   );
@@ -971,7 +971,7 @@ const MANAGED_SETTINGS_PATH = `${MANAGED_SETTINGS_DIR}/managed-settings.json`;
  * hook curls it on every stop; an absent value disables the hook (e.g.
  * non-CI local dev paths that don't install managed settings either).
  */
-const STOP_HOOK_GATE_URL_ENV = "PULLFROG_GATE_URL";
+const STOP_HOOK_GATE_URL_ENV = "REVIEWX_GATE_URL";
 
 /**
  * managed Stop hook. swaps the old `--resume <sessionId>` follow-up
@@ -1033,7 +1033,7 @@ function buildClaudeSettings(params: ManagedSettingsParams): Record<string, unkn
     `Glob(${path}/**)`,
     `Glob(/${path}/**)`,
   ]);
-  // write-deny the pullfrog hook assets so a prompt-injected agent cannot
+  // write-deny the reviewx hook assets so a prompt-injected agent cannot
   // rewrite the gate/Stop hook to capture the env it runs with. exact absolute
   // paths under tmpdir; dual leading-slash mirrors the secretDenyPaths form.
   // reads stay allowed (the files are not secret; the write is the vector).
@@ -1286,7 +1286,7 @@ export const claude = agent({
     // AWS_REGION are already in process.env from the workflow's `env:` block.
     // see https://docs.claude.com/en/docs/claude-code/amazon-bedrock.
     //
-    // we only force CLAUDE_CODE_USE_BEDROCK=1 when this is a Pullfrog-routed
+    // we only force CLAUDE_CODE_USE_BEDROCK=1 when this is a ReviewX-routed
     // bedrock run; if the user has set the env var manually for some other
     // reason (e.g. always-Bedrock org policy), `...process.env` already
     // carries it through and we don't disturb it.
@@ -1336,7 +1336,7 @@ export const claude = agent({
     // answering "did that check probe THIS token", and the answer is not the
     // one it looks like: the upstream check probes only the configured model's
     // env vars and is skipped entirely for proxy runs, so a proxy run, a
-    // non-Anthropic model under `PULLFROG_AGENT=claude`, and a run with no
+    // non-Anthropic model under `REVIEWX_AGENT=claude`, and a run with no
     // model at all all reach here unprobed. Guessing that wrong strips a live
     // API key in favour of a token nothing verified — the exact failure this
     // gate exists to prevent — and one 1-token call is far cheaper than being
@@ -1386,12 +1386,12 @@ export const claude = agent({
     // present. left unset when none is, rather than guessing.
     //
     // the cloud rung reads the ENV VARS and not `isBedrockRoute`/`isVertexRoute`:
-    // those two mean "Pullfrog routed this run", while a workflow may set
+    // those two mean "ReviewX routed this run", while a workflow may set
     // CLAUDE_CODE_USE_* itself (an always-Bedrock org policy) and the block above
     // deliberately passes that through untouched. claude-code ranks a cloud
     // provider first either way, so keying on our own routing would file those
     // runs under whatever ranks lower — the exact misattribution this records to
-    // prevent. FOUNDRY has no Pullfrog route at all and is reachable only this way.
+    // prevent. FOUNDRY has no ReviewX route at all and is reachable only this way.
     if (env.CLAUDE_CODE_USE_BEDROCK) {
       ctx.toolState.credential = "bedrock";
     } else if (env.CLAUDE_CODE_USE_VERTEX) {
@@ -1416,7 +1416,7 @@ export const claude = agent({
         `» ${CLAUDE_EFFORT_ENV}=${effortEnvOverride} in the run env overrides the effort setting for this session`
       );
     }
-    log.debug(`» starting Pullfrog (Claude Code): ${cliPath} ${baseArgs.join(" ")}`);
+    log.debug(`» starting ReviewX (Claude Code): ${cliPath} ${baseArgs.join(" ")}`);
     log.debug(`» working directory: ${repoDir}`);
 
     // gate server lives only as long as the claude subprocess does. the
@@ -1425,7 +1425,7 @@ export const claude = agent({
     await using gateServer = await startGateServer(ctx);
 
     const result = await runClaude({
-      label: "Pullfrog",
+      label: "ReviewX",
       cmd: cliPath,
       cwd: repoDir,
       env: { ...env, [STOP_HOOK_GATE_URL_ENV]: gateServer.url },

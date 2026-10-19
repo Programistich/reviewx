@@ -44,7 +44,7 @@ import type { GitHubAppPermissions } from "./github.ts";
  *   merge" still true. Legitimate pushes go through `push_branch`, which
  *   enforces the branch rules.
  * - `checks` is absent for the same class of reason: no human role grants it,
- *   and it would let the agent post its own passing `pullfrog-approval` status
+ *   and it would let the agent post its own passing `reviewx-approval` status
  *   (see wiki/review-approval.md).
  * - Every qualifying role therefore receives the SAME set. The role decides
  *   whether a token is minted at all, not how wide it is — `admin`, `maintain`

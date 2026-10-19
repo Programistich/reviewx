@@ -1,6 +1,6 @@
 /**
  * Claude subscription sign-in without Claude Code: the PKCE flow `claude
- * setup-token` runs, on a loopback redirect, so `pullfrog auth claude` mints
+ * setup-token` runs, on a loopback redirect, so `reviewx auth claude` mints
  * the same one-year inference-only token (`sk-ant-oat01-…`) itself.
  *
  * Only the access token is kept, exactly what `claude setup-token` prints; the
@@ -83,7 +83,7 @@ function waitForCode(params: { server: Server; state: string }): Promise<string>
       clearTimeout(timer);
       response
         .writeHead(200, { "content-type": "text/plain; charset=utf-8", connection: "close" })
-        .end("Pullfrog received the sign-in. Return to the terminal.");
+        .end("ReviewX received the sign-in. Return to the terminal.");
       const code = url.searchParams.get("code");
       if (code) resolve(code);
       else

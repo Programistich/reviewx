@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { AgentResult, TestRunnerOptions, ValidationCheck } from "../utils.ts";
 import { defineFixture, getAgentOutput } from "../utils.ts";
 
-const skillName = "pullfrog-skill-check";
+const skillName = "reviewx-skill-check";
 const token = randomUUID();
 
 const fixture = defineFixture(
@@ -25,7 +25,7 @@ function validator(result: AgentResult): ValidationCheck[] {
   const tokenMatches = result.structuredOutput === token;
 
   const agentOutput = getAgentOutput(result);
-  const skillInvoked = /skill\(\{[^)]*"name":"pullfrog-skill-check"/.test(agentOutput);
+  const skillInvoked = /skill\(\{[^)]*"name":"reviewx-skill-check"/.test(agentOutput);
 
   return [
     { name: "set_output", passed: setOutputCalled },
@@ -41,7 +41,7 @@ export const test: TestRunnerOptions = {
   agents: ["opencode"],
   repoSetup,
   env: {
-    PULLFROG_DISABLE_SECURITY_INSTRUCTIONS: "1",
-    PULLFROG_MODEL: "anthropic/claude-sonnet-4-6",
+    REVIEWX_DISABLE_SECURITY_INSTRUCTIONS: "1",
+    REVIEWX_MODEL: "anthropic/claude-sonnet-4-6",
   },
 };

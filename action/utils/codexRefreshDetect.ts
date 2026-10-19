@@ -2,7 +2,7 @@
  * `entryPost.ts` via `core.saveState`. Type-only across that boundary, so it
  * does not violate entryPost's stdlib-only import rule. */
 export interface OAuthWriteback {
-  /** Pullfrog secret to PUT the rotated chain back into. */
+  /** ReviewX secret to PUT the rotated chain back into. */
   secretName: "CODEX_AUTH_JSON" | "GROK_AUTH_JSON";
   /** opencode auth.json provider key this chain lives under. */
   provider: "openai" | "xai";
@@ -13,7 +13,7 @@ export interface OAuthWriteback {
 }
 
 /** Detect a mid-run Codex OAuth rotation from an on-disk auth.json and render
- * it in the Codex CLI shape the Pullfrog secret store holds. Returns null when
+ * it in the Codex CLI shape the ReviewX secret store holds. Returns null when
  * the file carries no usable OAuth entry or the refresh token is unchanged from
  * `originalRefresh`. Lives in its own module so `entryPost.ts` can import it
  * without pulling in `codexHome.ts` (which imports `./cli.ts` and node fs

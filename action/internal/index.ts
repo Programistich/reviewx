@@ -11,7 +11,7 @@ export type {
   ShellPermission,
   WriteablePayload,
 } from "../external.ts";
-export { pullfrogMcpName } from "../external.ts";
+export { reviewxMcpName } from "../external.ts";
 export type { BuildFooterParams, WorkflowRunFooterInfo } from "../utils/footer.ts";
 export {
   buildFooter,
@@ -19,7 +19,7 @@ export {
   REVIEWX_REPO_URL,
   stripExistingFooter,
 } from "../utils/footer.ts";
-export { isPullfrog } from "../utils/isPullfrog.ts";
+export { isReviewx } from "../utils/isReviewx.ts";
 export {
   isLeapingIntoActionCommentBody,
   LEAPING_INTO_ACTION_PREFIX,

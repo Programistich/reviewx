@@ -6,7 +6,7 @@ on:
   # release by landing a commit. that is the shape of the 2026-09-21 nubjs/nub compromise, where a
   # stolen push credential cut a tag and 18 packages published unattended. bumping the version in
   # package.json is therefore inert until a maintainer runs `gh workflow run publish.yml -R
-  # pullfrog/pullfrog`, and the staged version then still needs their 2FA approval before npm serves
+  # reviewx/reviewx`, and the staged version then still needs their 2FA approval before npm serves
   # it. the version is still read from package.json, so what ships is unchanged; only the trigger is.
   workflow_dispatch:
 
@@ -94,7 +94,7 @@ jobs:
       - name: Check whether npm already serves this version
         id: check_npm
         run: |
-          if curl -sf "https://registry.npmjs.org/pullfrog/${{ steps.version.outputs.version }}" > /dev/null; then
+          if curl -sf "https://registry.npmjs.org/reviewx/${{ steps.version.outputs.version }}" > /dev/null; then
             echo "published=true" >> $GITHUB_OUTPUT
             echo "ℹ️ npm already serves ${{ steps.version.outputs.version }} - skipping the staging step"
           else
@@ -102,7 +102,7 @@ jobs:
             echo "✅ ${{ steps.version.outputs.version }} is not on npm yet - will stage it"
           fi
 
-      # this stages, it does not publish. the trusted publisher for `pullfrog` is
+      # this stages, it does not publish. the trusted publisher for `reviewx` is
       # stage-only, so a run can put a version in npm's staged queue and nothing else; a
       # maintainer then approves it with 2FA, which is a proof of presence no stolen
       # credential can supply. the wait below is what observes that approval.
@@ -144,10 +144,10 @@ jobs:
           {
             echo "## Staged on npm - waiting for approval"
             echo
-            echo "\`pullfrog@$VERSION\` is staged and is not installable until a maintainer approves it with 2FA. No tag moves and no release is created until then."
+            echo "\`reviewx@$VERSION\` is staged and is not installable until a maintainer approves it with 2FA. No tag moves and no release is created until then."
             echo
             echo '```'
-            echo "npm stage list pullfrog"
+            echo "npm stage list reviewx"
             echo "npm stage approve <id>"
             echo "pnpm stage approve"
             echo '```'
@@ -158,7 +158,7 @@ jobs:
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
       # the release invariant: the major tag must never advance past what npm actually
-      # serves, because the action bakes `pullfrog@^<own version>` into its npx spec, so
+      # serves, because the action bakes `reviewx@^<own version>` into its npx spec, so
       # a major tag ahead of npm is ETARGET on every consumer run. confirm rather than
       # assume before any tag moves.
       #
@@ -179,7 +179,7 @@ jobs:
           MAJOR_TAG: ${{ steps.version.outputs.major_tag }}
         run: |
           for i in $(seq 1 350); do
-            if curl -sf "https://registry.npmjs.org/pullfrog/$VERSION" > /dev/null; then
+            if curl -sf "https://registry.npmjs.org/reviewx/$VERSION" > /dev/null; then
               echo "✅ npm is serving $VERSION (after $i min)"
               exit 0
             fi
@@ -203,7 +203,7 @@ jobs:
 
           # a re-run after a late approval must not drag the major tag back: when two staged
           # versions are approved together, only the one npm calls `latest` may own it.
-          latest="$(curl -sf https://registry.npmjs.org/-/package/pullfrog/dist-tags | jq -r .latest)"
+          latest="$(curl -sf https://registry.npmjs.org/-/package/reviewx/dist-tags | jq -r .latest)"
           if [ "$latest" != "${{ steps.version.outputs.version }}" ]; then
             echo "🏷️ npm latest is $latest, so ${{ steps.version.outputs.major_tag }} stays where it is"
             exit 0
@@ -226,18 +226,18 @@ jobs:
             exit 0
           fi
           {
-            echo "## 📦 pullfrog $VERSION"
+            echo "## 📦 reviewx $VERSION"
             echo
             echo "### Usage in GitHub Actions"
             echo
             echo '```yaml'
-            echo "- uses: pullfrog/pullfrog@$MAJOR_TAG"
+            echo "- uses: reviewx/reviewx@$MAJOR_TAG"
             echo '```'
             echo
             echo "### Installation via npm"
             echo
             echo '```bash'
-            echo "npm install pullfrog@$VERSION"
+            echo "npm install reviewx@$VERSION"
             echo '```'
           } > "$RUNNER_TEMP/release-notes.md"
           gh release create "$TAG" --title "$TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
@@ -263,4 +263,4 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📦 Published to" >> $GITHUB_STEP_SUMMARY
           echo "- GitHub Release: [View Release](https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag }})" >> $GITHUB_STEP_SUMMARY
-          echo "- npm Registry: [pullfrog@${{ steps.version.outputs.version }}](https://www.npmjs.com/package/pullfrog/v/${{ steps.version.outputs.version }})" >> $GITHUB_STEP_SUMMARY
+          echo "- npm Registry: [reviewx@${{ steps.version.outputs.version }}](https://www.npmjs.com/package/reviewx/v/${{ steps.version.outputs.version }})" >> $GITHUB_STEP_SUMMARY

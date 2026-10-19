@@ -1,6 +1,6 @@
 // Codex-to-OpenCode auth bridging for the action runtime.
 //
-// `pullfrog auth codex` stores a Codex CLI `auth.json` blob in the Pullfrog
+// `reviewx auth codex` stores a Codex CLI `auth.json` blob in the ReviewX
 // per-org secret store (production Postgres) — NOT a GitHub Actions secret.
 // This is non-negotiable: the OAuth refresh chain rotates on every use, and
 // `entryPost.ts` writes the rotated chain back via `PUT /api/runtime/secret`
@@ -9,7 +9,7 @@
 // wiki/codex-auth.md for the full constraint.
 //
 // At runtime, `CODEX_AUTH_JSON` lands in process.env via `runContext.dbSecrets`
-// merged in main.ts — sourced from Pullfrog Postgres through the OIDC-validated
+// merged in main.ts — sourced from ReviewX Postgres through the OIDC-validated
 // run-context endpoint, never from `${{ secrets.CODEX_AUTH_JSON }}` in
 // workflow yaml.
 //
@@ -31,15 +31,15 @@
 //      refresh_token, id_token?, account_id? } }` into OpenCode's shape
 //      `{ openai: { type: "oauth", refresh, access, expires, accountId } }`
 //   4. materializes it to disk under a path the MCP-shell mount-namespace
-//      sandbox can hide from bash: `/var/lib/pullfrog/run-*/opencode/auth.json`
+//      sandbox can hide from bash: `/var/lib/reviewx/run-*/opencode/auth.json`
 //      in CI (sudo-bootstrapped, fail-closed if sudo unavailable),
 //      `$HOME/.local/share/opencode/auth.json` locally (sandbox is no-op
 //      locally so the path is irrelevant to security)
 //   5. returns the path + the original refresh token so the post-run hook
-//      can detect a mid-run rotation and write back to Pullfrog
+//      can detect a mid-run rotation and write back to ReviewX
 //
-// Why `/var/lib/pullfrog/` and not `$HOME` in CI: bash via MCP runs inside a
-// mount namespace that overlays tmpfs on `/var/lib/pullfrog/` (see FS_MOUNTS
+// Why `/var/lib/reviewx/` and not `$HOME` in CI: bash via MCP runs inside a
+// mount namespace that overlays tmpfs on `/var/lib/reviewx/` (see FS_MOUNTS
 // in action/mcp/shell.ts), so bash sees an empty dir while opencode's
 // internal auth module — which runs in the agent process outside that
 // namespace — reads/writes the real file. `$HOME` can't be tmpfs-overlaid
@@ -78,14 +78,14 @@ export function clearInstalledSubscription(name: "CODEX_AUTH_JSON" | "GROK_AUTH_
   installedSubscriptionPaths.delete(name);
 }
 
-/** sandbox-hidden home for pullfrog-managed on-disk secrets in CI. bash via
+/** sandbox-hidden home for reviewx-managed on-disk secrets in CI. bash via
  * MCP shell tmpfs-overlays this path; opencode's internal auth module
  * bypasses external_directory and reaches the real file. mirrors the
  * pattern in action/agents/claude.ts installManagedSettings.
  *
  * not used for codex auth in local dev — the sandbox is no-op there, so
  * the path doesn't matter. local dev keeps the existing $HOME path. */
-export const PULLFROG_DATA_DIR = "/var/lib/pullfrog";
+export const REVIEWX_DATA_DIR = "/var/lib/reviewx";
 
 interface OpenCodeOAuthEntry {
   type: "oauth";
@@ -102,7 +102,7 @@ type OpenCodeAuthFile = Record<string, OpenCodeOAuthEntry>;
 
 /** the server latches `refresh_rejected_at` when OpenAI rejects the refresh —
  * the rotation is one-shot, so a rejection is PERMANENT until the user re-runs
- * `pullfrog auth codex` (see utils/codexSecretRotation.ts and #1101). the
+ * `reviewx auth codex` (see utils/codexSecretRotation.ts and #1101). the
  * latched blob still reaches the runner, and materializing it buys nothing: it
  * dies at the first model call, having already displaced an `OPENAI_API_KEY`
  * that would have served the run. */
@@ -110,7 +110,7 @@ function isRejectedChain(body: CodexAuthBody): boolean {
   if (!body.refresh_rejected_at) return false;
   log.warning(
     `» ${CODEX_AUTH_ENV} was rejected by OpenAI at ${body.refresh_rejected_at} and cannot be ` +
-      `refreshed — re-run \`npx pullfrog auth codex\`. skipping it for this run.`
+      `refreshed — re-run \`npx reviewx auth codex\`. skipping it for this run.`
   );
   return true;
 }
@@ -277,14 +277,14 @@ export function installXaiAuth(): InstalledXaiAuth | null {
 
 /** the server latches `refresh_rejected_at` when xAI rejects the refresh.
  * rotation is one-shot, so the rejection is permanent until the user re-runs
- * `pullfrog auth grok`. materializing a latched blob buys nothing — it dies at
+ * `reviewx auth grok`. materializing a latched blob buys nothing — it dies at
  * the first model call, having already displaced an `XAI_API_KEY` that would
  * have served the run. */
 function isXaiRejectedChain(body: XaiAuthBody): boolean {
   if (!body.refresh_rejected_at) return false;
   log.warning(
     `» ${XAI_AUTH_ENV} was rejected by xAI at ${body.refresh_rejected_at} and cannot be ` +
-      `refreshed — re-run \`npx pullfrog auth grok\`. skipping it for this run.`
+      `refreshed — re-run \`npx reviewx auth grok\`. skipping it for this run.`
   );
   return true;
 }
@@ -323,7 +323,7 @@ export function installCodexHome(): InstalledCodexHome | null {
   if (!body.tokens.id_token) {
     log.warning(
       `» ${CODEX_AUTH_ENV} carries no id_token — the codex CLI cannot load it. ` +
-        `re-run \`npx pullfrog auth codex\` to mint a complete credential.`
+        `re-run \`npx reviewx auth codex\` to mint a complete credential.`
     );
     return null;
   }
@@ -356,7 +356,7 @@ export function canInstallSubscription(name: string) {
  * - **local dev (CI != true)**: use $HOME. mount-namespace sandbox is no-op
  *   locally so the file isn't protected from bash either way; codex auth on
  *   a developer's machine is the developer's responsibility.
- * - **CI**: bootstrap /var/lib/pullfrog via sudo and use a fresh dir inside it.
+ * - **CI**: bootstrap /var/lib/reviewx via sudo and use a fresh dir inside it.
  *   MCP shell's mount namespace tmpfs-overlays this path, and claude
  *   managed-settings + opencode external_directory both deny it — three
  *   independent layers.
@@ -370,11 +370,11 @@ export function canInstallSubscription(name: string) {
  * runner that merely HELD a subscription, whatever its model (#1335). */
 function resolveDataHome(): string | null {
   if (process.env.CI !== "true") return join(homedir(), ".local", "share");
-  if (dataHome === undefined) dataHome = bootstrapPullfrogDataDir();
+  if (dataHome === undefined) dataHome = bootstrapReviewXDataDir();
   return dataHome;
 }
 
-function bootstrapPullfrogDataDir(): string | null {
+function bootstrapReviewXDataDir(): string | null {
   const user = userInfo().username;
   // `id -gn $user` resolves the user's primary group name correctly even on
   // self-hosted images where the group isn't `<user>:<user>` (e.g., `runner`
@@ -390,14 +390,14 @@ function bootstrapPullfrogDataDir(): string | null {
   // `-n` (non-interactive) makes sudo fail-fast on locked-down runners
   // instead of prompting and timing out.
   try {
-    execFileSync("sudo", ["-n", "mkdir", "-p", PULLFROG_DATA_DIR], { stdio: "pipe" });
-    execFileSync("sudo", ["-n", "chown", `${user}:${primaryGroup}`, PULLFROG_DATA_DIR], {
+    execFileSync("sudo", ["-n", "mkdir", "-p", REVIEWX_DATA_DIR], { stdio: "pipe" });
+    execFileSync("sudo", ["-n", "chown", `${user}:${primaryGroup}`, REVIEWX_DATA_DIR], {
       stdio: "pipe",
     });
-    execFileSync("sudo", ["-n", "chmod", "700", PULLFROG_DATA_DIR], { stdio: "pipe" });
+    execFileSync("sudo", ["-n", "chmod", "700", REVIEWX_DATA_DIR], { stdio: "pipe" });
   } catch (err) {
     log.warning(
-      `» subscription auth skipped: could not create ${PULLFROG_DATA_DIR} (${err instanceof Error ? err.message : String(err)}). ` +
+      `» subscription auth skipped: could not create ${REVIEWX_DATA_DIR} (${err instanceof Error ? err.message : String(err)}). ` +
         `it must live outside the agent sandbox's reach, which needs passwordless sudo on this runner; ` +
         `runs on a model that needs the subscription will report no key.`
     );
@@ -410,5 +410,5 @@ function bootstrapPullfrogDataDir(): string | null {
   }
   // one per run: concurrent runs on a self-hosted host shared opencode's SQLite db and
   // the codex CLI's home here (#1475).
-  return mkdtempSync(join(PULLFROG_DATA_DIR, "run-"));
+  return mkdtempSync(join(REVIEWX_DATA_DIR, "run-"));
 }

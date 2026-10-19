@@ -25,13 +25,13 @@ export const test: TestRunnerOptions = {
   fixture,
   validator,
   env: {
-    PULLFROG_DISABLE_SECURITY_INSTRUCTIONS: "1",
-    PULLFROG_MODEL: "bedrock/byok",
+    REVIEWX_DISABLE_SECURITY_INSTRUCTIONS: "1",
+    REVIEWX_MODEL: "bedrock/byok",
     BEDROCK_MODEL_ID: "us.anthropic.claude-sonnet-4-6",
     AWS_REGION: "us-east-1",
   },
   // disabled: our AWS account rejects every Bedrock invoke with
   // `400 Operation not allowed`, which is an account-side entitlement problem,
-  // not a Pullfrog regression. delete this line once the account is fixed.
+  // not a ReviewX regression. delete this line once the account is fixed.
   skipIf: () => "bedrock disabled — AWS account not entitled for InvokeModel",
 };

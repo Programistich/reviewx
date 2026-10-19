@@ -75,7 +75,7 @@ const expectedAgentEnvVars = [
       .filter((p) => !isUncatalogedByokProvider(p))
       .flatMap((p) => [...p.envVars, ...(p.managedCredentials ?? [])])
   ),
-  "PULLFROG_MODEL",
+  "REVIEWX_MODEL",
 ].sort();
 
 const expectedAgnosticEnvVars = ["ANTHROPIC_API_KEY", "GITHUB_TOKEN"].sort();

@@ -3,8 +3,8 @@ import { Inputs, JsonPayload } from "./payload.ts";
 describe("Inputs schema", () => {
   it("accepts prompt or prompt_file, both optional at the schema level", () => {
     expect(Inputs.assert({ prompt: "test prompt" })).toEqual({ prompt: "test prompt" });
-    expect(Inputs.assert({ prompt_file: ".github/pullfrog/triage.md" })).toEqual({
-      prompt_file: ".github/pullfrog/triage.md",
+    expect(Inputs.assert({ prompt_file: ".github/reviewx/triage.md" })).toEqual({
+      prompt_file: ".github/reviewx/triage.md",
     });
     expect(() => Inputs.assert({})).not.toThrow();
   });
@@ -33,15 +33,15 @@ describe("Inputs schema", () => {
 });
 
 describe("JsonPayload schema", () => {
-  it("requires ~pullfrog and version and prompt", () => {
+  it("requires ~reviewx and version and prompt", () => {
     const result = JsonPayload.assert({
-      "~pullfrog": true,
+      "~reviewx": true,
       version: "1.2.3",
       prompt: "test prompt",
     });
-    expect(result).toMatchObject({ "~pullfrog": true, version: "1.2.3", prompt: "test prompt" });
+    expect(result).toMatchObject({ "~reviewx": true, version: "1.2.3", prompt: "test prompt" });
     expect(() => JsonPayload.assert({})).toThrow();
-    expect(() => JsonPayload.assert({ "~pullfrog": true })).toThrow();
+    expect(() => JsonPayload.assert({ "~reviewx": true })).toThrow();
     expect(() => JsonPayload.assert({ version: "1.2.3" })).toThrow();
   });
 
@@ -52,7 +52,7 @@ describe("JsonPayload schema", () => {
     ["model", "anthropic/claude-opus"],
     ["event", { trigger: "unknown" }],
   ] as const)("should accept optional %s with value %s", (prop, value) => {
-    const input = { "~pullfrog": true, version: "1.2.3", prompt: "test prompt", [prop]: value };
+    const input = { "~reviewx": true, version: "1.2.3", prompt: "test prompt", [prop]: value };
     expect(() => JsonPayload.assert(input)).not.toThrow();
   });
 });

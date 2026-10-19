@@ -24,7 +24,7 @@ describe("removeIncludeIfEntries", () => {
   })();
 
   beforeEach(() => {
-    repoDir = mkdtempSync(join(tmpdir(), "pullfrog-setup-test-"));
+    repoDir = mkdtempSync(join(tmpdir(), "reviewx-setup-test-"));
     execSync("git init -q", { cwd: repoDir, env: cleanEnv });
   });
 

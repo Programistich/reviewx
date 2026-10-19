@@ -3,7 +3,7 @@ import "./arkConfig.ts";
 import { createServer } from "node:net";
 import { setTimeout as sleep } from "node:timers/promises";
 import { FastMCP, type Tool } from "fastmcp";
-import { type AgentId, pullfrogMcpName } from "../external.ts";
+import { type AgentId, reviewxMcpName } from "../external.ts";
 import type { Mode } from "../modes.ts";
 import type { ToolState } from "../toolState.ts";
 import { closeBrowserDaemon } from "../utils/browser.ts";
@@ -49,7 +49,7 @@ import {
 } from "./reviewComments.ts";
 import { SearchIssuesTool } from "./searchIssues.ts";
 import { SelectModeTool } from "./selectMode.ts";
-import { addTools, type PullfrogTool } from "./shared.ts";
+import { addTools, type ReviewXTool } from "./shared.ts";
 import { KillBackgroundTool, ShellTool } from "./shell.ts";
 
 export interface ToolContext {
@@ -94,11 +94,11 @@ const mcpHost = "127.0.0.1";
 const mcpEndpoint = "/mcp";
 
 function readEnvPort(): number | null {
-  const rawPort = process.env.PULLFROG_MCP_PORT;
+  const rawPort = process.env.REVIEWX_MCP_PORT;
   if (!rawPort) return null;
   const parsed = Number.parseInt(rawPort, 10);
   if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 65535) {
-    throw new Error(`invalid PULLFROG_MCP_PORT: ${rawPort}`);
+    throw new Error(`invalid REVIEWX_MCP_PORT: ${rawPort}`);
   }
   return parsed;
 }
@@ -127,8 +127,8 @@ function isAddressInUse(error: unknown): boolean {
 
 type JsonSchema = Record<string, unknown>;
 
-function buildCommonTools(ctx: ToolContext, outputSchema?: JsonSchema): PullfrogTool[] {
-  const tools: PullfrogTool[] = [
+function buildCommonTools(ctx: ToolContext, outputSchema?: JsonSchema): ReviewXTool[] {
+  const tools: ReviewXTool[] = [
     StartDependencyInstallationTool(ctx),
     AwaitDependencyInstallationTool(ctx),
     CreateCommentTool(ctx),
@@ -186,7 +186,7 @@ function buildCommonTools(ctx: ToolContext, outputSchema?: JsonSchema): Pullfrog
 export function buildOrchestratorTools(
   ctx: ToolContext,
   outputSchema?: JsonSchema
-): PullfrogTool[] {
+): ReviewXTool[] {
   const tools = [
     ...buildCommonTools(ctx, outputSchema),
     ReportProgressTool(ctx),
@@ -216,7 +216,7 @@ async function tryStartMcpServer(
   tools: Tool<any, any>[],
   port: number
 ): Promise<McpStartResult | null> {
-  const server = new FastMCP({ name: pullfrogMcpName, version: "0.0.1" });
+  const server = new FastMCP({ name: reviewxMcpName, version: "0.0.1" });
   addTools(ctx, server, tools);
 
   try {

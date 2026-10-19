@@ -81,7 +81,7 @@ export async function finalizeSuccessRun(input: {
   // outer catch path (BillingError reclassify → hang → BYOK billing →
   // api-key → generic), so a harness-returned `{success: false}` lands an
   // actionable error block in the job summary alongside the matching body
-  // in the progress comment. hang and generic get the `### ❌ Pullfrog
+  // in the progress comment. hang and generic get the `### ❌ ReviewX
   // failed` H3 banner; BillingError, BYOK billing, and api-key render
   // their own provider-specific framing (no banner). renders once; reused
   // for both surfaces below.
@@ -144,15 +144,15 @@ export async function finalizeSuccessRun(input: {
   }
 
   if (input.toolState.output) {
-    log.info(`::pullfrog-output::${Buffer.from(input.toolState.output).toString("base64")}`);
+    log.info(`::reviewx-output::${Buffer.from(input.toolState.output).toString("base64")}`);
     core.setOutput("result", input.toolState.output);
   }
 
   // proactive approve-when-clean for the Fix-all / Fix-👍s flow: when a
-  // fix_review run succeeded and every Pullfrog finding it raised is resolved,
+  // fix_review run succeeded and every ReviewX finding it raised is resolved,
   // post an approving review. composes with create_pull_request_review's gate
   // (which blocks a bad approval) — this is the approve side. runs before the
-  // status check so the verdict it records lands on `pullfrog-approval`.
+  // status check so the verdict it records lands on `reviewx-approval`.
   // best-effort: a failure must not flip the run's outcome.
   if (input.result.success) {
     await approveAfterFix(input.toolContext).catch((error) => {
@@ -161,7 +161,7 @@ export async function finalizeSuccessRun(input: {
   }
 
   // opt-in branch-protection check-runs. `runSucceeded` mirrors the run's
-  // own outcome so a harness-returned `{success: false}` posts `pullfrog`
+  // own outcome so a harness-returned `{success: false}` posts `reviewx`
   // = failure, same as the catch path. own best-effort guard internally.
   await reportStatusChecks(input.toolContext, { runSucceeded: input.result.success });
 }

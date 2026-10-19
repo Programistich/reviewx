@@ -41,7 +41,7 @@ jobs:
             skill-invoke-opencode,
             smoke,
             token-exfil,
-            # vertex-claude,  # disabled: 0 anthropic quota on pullfrog GCP vertex
+            # vertex-claude,  # disabled: 0 anthropic quota on reviewx GCP vertex
             vertex-opencode,
           ]
         exclude:
@@ -82,19 +82,19 @@ jobs:
       AWS_REGION: us-east-1
       BEDROCK_MODEL_ID: us.anthropic.claude-sonnet-4-6
       VERTEX_SERVICE_ACCOUNT_JSON: ${{ secrets.VERTEX_SERVICE_ACCOUNT_JSON }}
-      GOOGLE_CLOUD_PROJECT: pullfrog
+      GOOGLE_CLOUD_PROJECT: reviewx
       VERTEX_LOCATION: global
       VERTEX_MODEL_ID: gemini-2.5-flash
-      PULLFROG_MODEL: ${{ vars.PULLFROG_MODEL }}
-      # CI smoke-testing shortcut only — production stores this in Pullfrog's
-      # per-org secret store (Postgres), set via `pullfrog auth codex`. GH
+      REVIEWX_MODEL: ${{ vars.REVIEWX_MODEL }}
+      # CI smoke-testing shortcut only — production stores this in ReviewX's
+      # per-org secret store (Postgres), set via `reviewx auth codex`. GH
       # Actions secrets are immutable at runtime so the post-hook can't write
       # back the rotated refresh token; CI accepts the staleness and we
       # manually re-provision when smoke tests start failing. Do not copy this
       # pattern into user-facing workflows. See wiki/codex-auth.md.
       CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
       # Same CI-shortcut caveat, and staler sooner — Grok access tokens live
-      # ~6h. Production path is `pullfrog auth grok`. See wiki/grok-auth.md.
+      # ~6h. Production path is `reviewx auth grok`. See wiki/grok-auth.md.
       GROK_AUTH_JSON: ${{ secrets.GROK_AUTH_JSON }}
     steps:
       - uses: actions/checkout@v6

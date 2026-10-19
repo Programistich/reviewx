@@ -70,7 +70,7 @@
  *      raw text in a fenced block.
  *
  *   7. Default — the job summary gets a plain-English lead sentence plus the
- *      raw error in a fenced code block under the `### ❌ Pullfrog failed`
+ *      raw error in a fenced code block under the `### ❌ ReviewX failed`
  *      banner; the PR comment collapses to the same one-line logs link as
  *      the hang case, since the raw internal string helps nobody on the PR.
  *
@@ -79,7 +79,7 @@
  * transient-upstream, unclassified provider error) render identical bodies on
  * both surfaces; the non-actionable ones (unexplained hang, generic) keep the
  * forensics in the Actions job summary and show a calm one-liner in the PR
- * comment, whose footer already carries Pullfrog branding + rerun links.
+ * comment, whose footer already carries ReviewX branding + rerun links.
  */
 
 import type { AgentDiagnostic } from "./agentHangReport.ts";
@@ -225,7 +225,7 @@ function formatContextOverflowSummary(input: { owner: string; name: string; raw:
  * so the user isn't staring at a raw internal string like
  * `opencode prompt failed: fetch failed`, followed by the actual error in a
  * fenced code block for anyone who needs the detail. Shared by both surfaces;
- * the job summary adds the `### ❌ Pullfrog failed` banner on top.
+ * the job summary adds the `### ❌ ReviewX failed` banner on top.
  */
 function formatGenericFailure(errorMessage: string): string {
   return [
@@ -335,12 +335,12 @@ function formatProviderBillingExhausted(input: { errorMessage: string }): string
     : "**Your provider account is out of credit.**";
   const cta = dashboardUrl
     ? `[Top up \`${providerId}\` →](${dashboardUrl})`
-    : "Top up your provider account, then re-trigger Pullfrog.";
+    : "Top up your provider account, then re-trigger ReviewX.";
 
   return [
     headline,
     "",
-    "Pullfrog detected a billing-exhausted response from your provider — the agent stopped before completing this run.",
+    "ReviewX detected a billing-exhausted response from your provider — the agent stopped before completing this run.",
     "",
     cta,
     "",
@@ -482,7 +482,7 @@ export function renderRunError(input: {
   // gated on isHang because the harness sets `agentDiagnostic` on entry, so
   // any non-hang throw that hits the outer catch (e.g. post-success
   // output_schema validator, or a late cleanup throw after the run already
-  // succeeded) would otherwise render "Pullfrog failed" with stale event
+  // succeeded) would otherwise render "ReviewX failed" with stale event
   // counts and silently drop the real errorMessage.
   const isHang =
     input.errorMessage.startsWith("activity timeout") ||
@@ -507,7 +507,7 @@ export function renderRunError(input: {
   // a "rotate your key" CTA when the actual fix is "top up credits".
   if (isProviderBillingExhausted(input.errorMessage)) {
     const body = formatProviderBillingExhausted({ errorMessage: input.errorMessage });
-    return { summary: `### ❌ Pullfrog failed\n\n${body}`, comment: body };
+    return { summary: `### ❌ ReviewX failed\n\n${body}`, comment: body };
   }
 
   // routable-endpoint refusal, checked alongside the billing branch for the
@@ -519,7 +519,7 @@ export function renderRunError(input: {
       name: input.repo.name,
       errorMessage: input.errorMessage,
     });
-    return { summary: `### ❌ Pullfrog failed\n\n${body}`, comment: body };
+    return { summary: `### ❌ ReviewX failed\n\n${body}`, comment: body };
   }
 
   // a usage window, not a wallet or a key — ahead of the api-key branch for the
@@ -530,7 +530,7 @@ export function renderRunError(input: {
       name: input.repo.name,
       raw: input.errorMessage,
     });
-    return { summary: `### ❌ Pullfrog failed\n\n${body}`, comment: body };
+    return { summary: `### ❌ ReviewX failed\n\n${body}`, comment: body };
   }
 
   // an ABSENT credential, not a rejected one — the remedies share nothing. neither pattern
@@ -543,7 +543,7 @@ export function renderRunError(input: {
       name: input.repo.name,
       errorMessage: input.errorMessage,
     });
-    return { summary: `### ❌ Pullfrog failed\n\n${body}`, comment: body };
+    return { summary: `### ❌ ReviewX failed\n\n${body}`, comment: body };
   }
 
   // both BYOK setup layers — `resolveSlug`'s routing-slug refusal and the
@@ -558,7 +558,7 @@ export function renderRunError(input: {
       name: input.repo.name,
       raw: input.errorMessage,
     });
-    return { summary: `### ❌ Pullfrog failed\n\n${body}`, comment: body };
+    return { summary: `### ❌ ReviewX failed\n\n${body}`, comment: body };
   }
 
   const apiKeySource = hangBody ?? input.errorMessage;
@@ -589,7 +589,7 @@ export function renderRunError(input: {
       name: input.repo.name,
       raw: input.errorMessage,
     });
-    return { summary: `### ❌ Pullfrog failed\n\n${body}`, comment: body };
+    return { summary: `### ❌ ReviewX failed\n\n${body}`, comment: body };
   }
 
   if (isZenFreeTierGateError(input.errorMessage)) {
@@ -598,7 +598,7 @@ export function renderRunError(input: {
       name: input.repo.name,
       raw: input.errorMessage,
     });
-    return { summary: `### ❌ Pullfrog failed\n\n${body}`, comment: body };
+    return { summary: `### ❌ ReviewX failed\n\n${body}`, comment: body };
   }
 
   // actionable, so it renders identically on both surfaces rather than
@@ -609,7 +609,7 @@ export function renderRunError(input: {
       name: input.repo.name,
       raw: input.errorMessage,
     });
-    return { summary: `### ❌ Pullfrog failed\n\n${body}`, comment: body };
+    return { summary: `### ❌ ReviewX failed\n\n${body}`, comment: body };
   }
 
   if (isRunTimeoutError(input.errorMessage)) {
@@ -618,7 +618,7 @@ export function renderRunError(input: {
       name: input.repo.name,
       raw: input.errorMessage,
     });
-    return { summary: `### ❌ Pullfrog failed\n\n${body}`, comment: body };
+    return { summary: `### ❌ ReviewX failed\n\n${body}`, comment: body };
   }
 
   // an upstream blip is not ours, but the silence about it was: the provider
@@ -627,7 +627,7 @@ export function renderRunError(input: {
   // last of the classified branches, so every specific one still wins.
   if (isTransientUpstreamError(input.errorMessage)) {
     const body = formatTransientUpstreamBody(input.errorMessage);
-    return { summary: `### ❌ Pullfrog failed\n\n${body}`, comment: body };
+    return { summary: `### ❌ ReviewX failed\n\n${body}`, comment: body };
   }
 
   if (hangBody) {
@@ -650,7 +650,7 @@ export function renderRunError(input: {
       input.agentDiagnostic?.lastProviderError !== undefined ||
       input.agentDiagnostic?.sawModelOutput === false;
     return {
-      summary: `### ❌ Pullfrog failed\n\n${hangBody}`,
+      summary: `### ❌ ReviewX failed\n\n${hangBody}`,
       comment: explained ? hangBody : formatMinimalFailureComment(input.repo),
     };
   }
@@ -663,12 +663,12 @@ export function renderRunError(input: {
       name: input.repo.name,
       raw: input.errorMessage,
     });
-    return { summary: `### ❌ Pullfrog failed\n\n${body}`, comment: body };
+    return { summary: `### ❌ ReviewX failed\n\n${body}`, comment: body };
   }
 
   const genericBody = formatGenericFailure(input.errorMessage);
   return {
-    summary: `### ❌ Pullfrog failed\n\n${genericBody}`,
+    summary: `### ❌ ReviewX failed\n\n${genericBody}`,
     comment: formatMinimalFailureComment(input.repo),
   };
 }

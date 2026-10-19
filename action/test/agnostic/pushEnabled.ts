@@ -72,6 +72,6 @@ export const test: TestRunnerOptions = {
   name: "push-enabled",
   fixture,
   validator,
-  env: { PULLFROG_DISABLE_SECURITY_INSTRUCTIONS: "1" },
+  env: { REVIEWX_DISABLE_SECURITY_INSTRUCTIONS: "1" },
   tags: ["agnostic"],
 };
