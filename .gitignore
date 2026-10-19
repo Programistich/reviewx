@@ -47,3 +47,4 @@ examples
 
 .pnpm-store/
 
+server/dist
