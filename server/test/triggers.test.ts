@@ -161,15 +161,18 @@ describe("decideTrigger: comments", () => {
 
 describe("mention helpers", () => {
   it("matches only standalone mentions, case-insensitively", () => {
-    expect(hasMention("@reviewx please", "reviewx")).toBe(true);
-    expect(hasMention("hey @ReviewX,", "reviewx")).toBe(true);
-    expect(hasMention("@reviewx-bot", "reviewx")).toBe(false);
-    expect(hasMention("mail@reviewx.dev", "reviewx")).toBe(false);
-    expect(hasMention(null, "reviewx")).toBe(false);
+    expect(hasMention("@reviewx please", "reviewx-bot")).toBe(true);
+    expect(hasMention("hey @ReviewX,", "reviewx-bot")).toBe(true);
+    expect(hasMention("@reviewx-bot look", "reviewx-bot")).toBe(true);
+    expect(hasMention("@reviewx-other", "reviewx-bot")).toBe(false);
+    expect(hasMention("mail@reviewx.dev", "reviewx-bot")).toBe(false);
+    expect(hasMention(null, "reviewx-bot")).toBe(false);
   });
 
   it("strips every mention and collapses whitespace", () => {
-    expect(stripMention("@reviewx: fix this @reviewx please", "reviewx")).toBe("fix this please");
+    expect(stripMention("@reviewx: fix this @reviewx-bot please", "reviewx-bot")).toBe(
+      "fix this please"
+    );
   });
 });
 

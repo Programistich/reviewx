@@ -15,7 +15,7 @@ function required(name: string): string {
 }
 
 export function loadEnv(): Env {
-  const appSlug = process.env.APP_SLUG?.trim() || "reviewx";
+  const appSlug = process.env.APP_SLUG?.trim() || "reviewx-bot";
   return {
     appId: required("APP_ID"),
     appPrivateKey: required("APP_PRIVATE_KEY").replace(/\\n/g, "\n"),

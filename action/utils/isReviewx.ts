@@ -3,5 +3,5 @@
  */
 export function isReviewx(actor: string | null | undefined): boolean {
   actor = actor?.toLowerCase().replace("[bot]", "");
-  return !!actor && (actor === "reviewx" || actor === "reviewxdev");
+  return !!actor && (actor === "reviewx-bot" || actor === "reviewxdev");
 }
