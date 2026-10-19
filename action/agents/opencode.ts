@@ -76,12 +76,9 @@ import {
 import type { AgentDiagnostic } from "../utils/agentHangReport.ts";
 import { formatJsonValue, log } from "../utils/cli.ts";
 import { installCodexAuth, installXaiAuth } from "../utils/codexHome.ts";
-import type { OAuthWriteback } from "../utils/codexRefreshDetect.ts";
-import { OAUTH_WRITEBACK_STATE } from "../utils/oauthWriteback.ts";
 import { openCodeHomeEnv } from "../utils/openCodeModels.ts";
 import { findProviderErrorMatch } from "../utils/providerErrors.ts";
 import { resolveRunEffort } from "../utils/runEffort.ts";
-import { saveSecretState } from "../utils/secretCommands.ts";
 import { addSkill, installBundledSkills } from "../utils/skills.ts";
 import { isTrackedChild, trackChild, untrackChild } from "../utils/subprocess.ts";
 import type { TodoTracker } from "../utils/todoTracking.ts";
@@ -1215,7 +1212,7 @@ export const opencode = agent({
   run: async (ctx) => {
     const cliPath = await installCli();
 
-    const rawModel = ctx.payload.proxyModel ?? ctx.resolvedModel ?? autoSelectModel();
+    const rawModel = ctx.resolvedModel ?? autoSelectModel();
 
     // rawModel is the authoritative "what actually ran" — including the
     // auto-select pick that main.ts cannot know (it's opencode-specific:
@@ -1229,7 +1226,7 @@ export const opencode = agent({
     const effort = resolveRunEffort({ ...ctx, resolvedModel: rawModel });
     // the startup block prints before auto-select happens, so it can only say
     // "pending" for those runs. this is the first point the real level is known.
-    if (!ctx.resolvedModel && !ctx.payload.proxyModel) {
+    if (!ctx.resolvedModel) {
       log.info(`» effort: ${effort.rung ?? "n/a (model has no effort control)"}`);
     }
 
@@ -1329,36 +1326,11 @@ export const opencode = agent({
     // always. see wiki/sandbox-v2.md.
     delete env.OPENCODE_EXPERIMENTAL;
     delete env.OPENCODE_EXPERIMENTAL_CODE_MODE;
-    // both chains rotate mid-run inside opencode, so each needs a post-hook
-    // writeback entry. the API key is dropped only for the provider whose
-    // subscription is driving the run — an OPENAI_API_KEY outranks the Codex
-    // OAuth chain, and XAI_API_KEY likewise outranks the Grok one.
-    const writebacks: OAuthWriteback[] = [];
-    if (codexAuth) {
-      delete env.OPENAI_API_KEY;
-      writebacks.push({
-        secretName: "CODEX_AUTH_JSON",
-        provider: "openai",
-        authPath: codexAuth.authPath,
-        originalRefresh: codexAuth.originalRefresh,
-        originalIdToken: codexAuth.originalIdToken,
-      });
-    }
-    if (xaiAuth) {
-      delete env.XAI_API_KEY;
-      writebacks.push({
-        secretName: "GROK_AUTH_JSON",
-        provider: "xai",
-        authPath: xaiAuth.authPath,
-        originalRefresh: xaiAuth.originalRefresh,
-      });
-    }
-    if (writebacks.length > 0) {
-      saveSecretState(
-        OAUTH_WRITEBACK_STATE,
-        JSON.stringify({ apiToken: ctx.apiToken, entries: writebacks })
-      );
-    }
+    // the API key is dropped only for the provider whose subscription is
+    // driving the run — an OPENAI_API_KEY outranks the Codex OAuth chain, and
+    // XAI_API_KEY likewise outranks the Grok one.
+    if (codexAuth) delete env.OPENAI_API_KEY;
+    if (xaiAuth) delete env.XAI_API_KEY;
 
     log.debug(`» starting Pullfrog (OpenCode, in-process SDK): ${cliPath}`);
     log.debug(`» working directory: ${repoDir}`);

@@ -201,12 +201,8 @@ export type OpenRouterDataCollection = "allow" | "deny";
  * was still served under `deny` on 2026-09-11), and a BYOK OpenRouter key gets
  * no preference — the customer's own account decides. see wiki/muse-spark.md.
  */
-export function openRouterDataCollection(ctx: {
-  payload: { proxyModel?: string | undefined };
-  toolState: { oss?: boolean | undefined };
-}): OpenRouterDataCollection | undefined {
-  if (!ctx.payload.proxyModel) return undefined;
-  return ctx.toolState.oss ? "allow" : "deny";
+export function openRouterDataCollection(_ctx: unknown): OpenRouterDataCollection | undefined {
+  return undefined;
 }
 
 function dataCollectionPreference(policy: OpenRouterDataCollection | undefined): {

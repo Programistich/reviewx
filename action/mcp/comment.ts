@@ -1,10 +1,8 @@
 import { type } from "arktype";
 import { primaryRepoState } from "../toolState.ts";
-import { getApiUrl } from "../utils/apiUrl.ts";
-import { buildPullfrogFooter, stripExistingFooter } from "../utils/buildPullfrogFooter.ts";
+import { buildFooter, stripExistingFooter } from "../utils/footer.ts";
 import { log } from "../utils/cli.ts";
 import { fixDoubleEscapedString } from "../utils/fixDoubleEscapedString.ts";
-import { patchWorkflowRunFields } from "../utils/patchWorkflowRunFields.ts";
 import {
   createLeapingProgressComment,
   deleteProgressCommentApi,
@@ -25,8 +23,7 @@ function isNotFoundError(error: unknown): boolean {
 
 function buildCommentFooter(ctx: ToolContext, customParts?: string[]): string {
   const runId = ctx.runId;
-  return buildPullfrogFooter({
-    triggeredBy: true,
+  return buildFooter({
     workflowRun:
       runId !== undefined
         ? {
@@ -38,16 +35,11 @@ function buildCommentFooter(ctx: ToolContext, customParts?: string[]): string {
         : undefined,
     customParts,
     model: ctx.toolState.model,
-    clamped: ctx.toolState.modelClamped,
-    unselectedProxyDefault: ctx.toolState.unselectedProxyDefault,
-    oss: ctx.oss,
-    owner: ctx.repo.owner,
   });
 }
 
-function buildImplementPlanLink(ctx: ToolContext, issueNumber: number, commentId: number): string {
-  const apiUrl = getApiUrl();
-  return `[Implement plan ➔](${apiUrl}/trigger/${ctx.repo.owner}/${ctx.repo.name}/${issueNumber}?action=implement&comment_id=${commentId})`;
+function buildImplementPlanLink(_ctx: ToolContext, _issueNumber: number, _commentId: number): string {
+  return "comment `@reviewx implement this plan` to start";
 }
 
 function buildEnrichmentLinks(ctx: ToolContext): string[] {
@@ -60,9 +52,7 @@ function buildEnrichmentLinks(ctx: ToolContext): string[] {
   ) {
     return [];
   }
-  return [
-    `[Implement a fix ➔](${getApiUrl()}/trigger/${ctx.repo.owner}/${ctx.repo.name}/${event.issue_number}?action=build)`,
-  ];
+  return ["comment `@reviewx fix this` to implement"];
 }
 
 export function addFooter(ctx: ToolContext, body: string): string {
@@ -118,9 +108,6 @@ export function CreateCommentTool(ctx: ToolContext) {
       const enrichmentLinks =
         issueNumber === ctx.payload.event.issue_number ? buildEnrichmentLinks(ctx) : [];
       if (commentType === "Plan" || enrichmentLinks.length > 0) {
-        if (commentType === "Plan" && result.data.node_id) {
-          await patchWorkflowRunFields(ctx, { planCommentNodeId: result.data.node_id });
-        }
         // add "Implement plan" link (needs comment ID, so create-then-update)
         const customParts =
           commentType === "Plan"
@@ -271,10 +258,6 @@ export async function reportProgress(
 
     if (!params.liveProgress) ctx.toolState.wasUpdated = true;
 
-    if (isPlanMode && result.node_id) {
-      await patchWorkflowRunFields(ctx, { planCommentNodeId: result.node_id });
-    }
-
     return {
       commentId: result.id,
       url: result.html_url,
@@ -336,10 +319,6 @@ export async function reportProgress(
 
     if (!params.liveProgress) ctx.toolState.wasUpdated = true;
 
-    if (isPlanMode && result.node_id) {
-      await patchWorkflowRunFields(ctx, { planCommentNodeId: result.node_id });
-    }
-
     return {
       commentId: result.id,
       url: result.html_url,
@@ -384,10 +363,6 @@ export async function reportProgress(
     const bodyWithPlanLink = `${bodyWithoutFooter}${footer}`;
 
     const updateResult = await updateProgressComment(apiCtx, created.comment, bodyWithPlanLink);
-
-    if (isPlanMode && updateResult.node_id) {
-      await patchWorkflowRunFields(ctx, { planCommentNodeId: updateResult.node_id });
-    }
 
     return {
       commentId: updateResult.id,

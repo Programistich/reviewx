@@ -1173,7 +1173,7 @@ export const claude = agent({
   run: async (ctx) => {
     const cliPath = await installClaudeCli();
 
-    const specifier = ctx.payload.proxyModel ?? ctx.resolvedModel ?? autoSelectClaudeModel();
+    const specifier = ctx.resolvedModel ?? autoSelectClaudeModel();
     // mirror opencode's writeback: `main.ts` could not know the fallback pick,
     // so `toolState.model` (footers + the end-of-run PATCH that persists
     // `WorkflowRun.model`) would otherwise report nothing for these runs.
@@ -1223,7 +1223,7 @@ export const claude = agent({
     const effort = resolveRunEffort({ ...ctx, resolvedModel: specifier });
     // the startup block prints before the fallback is picked, so it can only say
     // "pending" for those runs. this is the first point the real level is known.
-    if (!ctx.resolvedModel && !ctx.payload.proxyModel) {
+    if (!ctx.resolvedModel) {
       log.info(`» effort: ${effort.rung ?? "n/a (model has no effort control)"}`);
     }
 

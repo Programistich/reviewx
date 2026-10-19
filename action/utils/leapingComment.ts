@@ -1,4 +1,4 @@
-import { stripExistingFooter } from "./buildPullfrogFooter.ts";
+import { stripExistingFooter } from "./footer.ts";
 
 /**
  * The prefix text for the initial "leaping into action" comment.

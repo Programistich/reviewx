@@ -186,13 +186,6 @@ export interface AgentRunContext {
    */
   onTurnRecovered?: (() => void) | undefined;
   onToolUse?: ((event: AgentToolUseEvent) => void) | undefined;
-  /**
-   * Pullfrog API JWT scoped to this run. agents only need this when they
-   * have to write state back to Pullfrog mid-run (today: opencode.ts uses
-   * it to seed the post-hook's writeback envelope for Codex auth refresh).
-   * empty string when the run wasn't context-resolved (e.g. local dry-runs).
-   */
-  apiToken: string;
 }
 
 export interface Agent {

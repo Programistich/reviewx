@@ -4,7 +4,7 @@ import type { Octokit } from "@octokit/rest";
 import { type } from "arktype";
 import * as yes from "yes";
 import { resolveBodyAssets } from "../utils/body.ts";
-import { stripExistingFooter } from "../utils/buildPullfrogFooter.ts";
+import { stripExistingFooter } from "../utils/footer.ts";
 import { isPullfrog } from "../utils/isPullfrog.ts";
 import { log } from "../utils/log.ts";
 import type { ToolContext } from "./server.ts";

@@ -1,7 +1,6 @@
 import { type } from "arktype";
 import { formatMcpToolRef } from "../external.ts";
 import type { Mode } from "../modes.ts";
-import { apiFetch } from "../utils/apiFetch.ts";
 import type { ToolContext } from "./server.ts";
 import { execute, tool } from "./shared.ts";
 
@@ -60,31 +59,6 @@ function buildOrchestratorGuidance(
     description: mode.description,
     orchestratorGuidance: guidance,
   };
-}
-
-// matches the API response for /repo/[owner]/[repo]/issue/[issueNumber]/plan-comment
-export type PlanCommentResponsePayload = { error: string } | { commentId: number; body: string };
-
-// IMPORTANT: this route authenticates via GitHub installation token (getEnrichedRepo),
-// NOT the Pullfrog API JWT (ctx.apiToken). use ctx.githubInstallationToken here.
-// see wiki/api-auth.md for the two auth patterns.
-async function fetchExistingPlanComment(
-  ctx: ToolContext,
-  issueNumber: number
-): Promise<Extract<PlanCommentResponsePayload, { commentId: number }> | null> {
-  if (!ctx.githubInstallationToken) return null;
-  try {
-    const response = await apiFetch({
-      path: `/api/repo/${ctx.repo.owner}/${ctx.repo.name}/issue/${issueNumber}/plan-comment`,
-      method: "GET",
-      headers: { authorization: `Bearer ${ctx.githubInstallationToken}` },
-      signal: AbortSignal.timeout(10_000),
-    });
-    const data = (await response.json()) as PlanCommentResponsePayload;
-    return response.ok && "commentId" in data ? data : null;
-  } catch {
-    return null;
-  }
 }
 
 const SUMMARY_MODES = new Set(["Review", "IncrementalReview", "Task"]);
@@ -178,21 +152,6 @@ export function SelectModeTool(ctx: ToolContext) {
       }
 
       ctx.toolState.selectedMode = selectedMode.name;
-
-      if (selectedMode.name === "Plan") {
-        const issueNumber = params.issue_number ?? ctx.payload.event.issue_number;
-        if (issueNumber !== undefined) {
-          const existing = await fetchExistingPlanComment(ctx, issueNumber);
-          if (existing !== null) {
-            ctx.toolState.existingPlanCommentId = existing.commentId;
-            ctx.toolState.previousPlanBody = existing.body;
-            return {
-              ...buildOrchestratorGuidance(ctx, selectedMode, overrides.PlanEdit),
-              previousPlanBody: existing.body,
-            };
-          }
-        }
-      }
 
       return guidanceFor(selectedMode);
     }),

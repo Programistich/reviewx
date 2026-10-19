@@ -8,15 +8,8 @@
  * sub-source so a hang masking an api-key error still surfaces the api-key
  * CTA):
  *
- *   1. `BillingError` — either the proxy-token mint already threw one (402
- *      handled inline) or the agent runtime surfaced an OpenRouter
- *      "key budget exhausted" string mid-run. Both render via
- *      `formatBillingErrorSummary` so the user sees actionable copy.
- *
- *   1a. Pre-rendered bodies — a throw site that already built the markdown
- *      (`MODEL_ACCESS_MARKER`, `SECRETS_UNAVAILABLE_MARKER`,
- *      `ROUTER_UNFUNDED_MARKER`, `CREDENTIAL_REJECTED_MARKER`,
- *      `CREDENTIAL_POOL_REFUSED_MARKER`) passes through verbatim on both surfaces.
+ *   1. Pre-rendered bodies — a throw site that already built the markdown
+ *      (`CREDENTIAL_REJECTED_MARKER`) passes through verbatim on both surfaces.
  *
  *   2. BYOK provider billing-exhausted (#835) — DeepSeek "Insufficient
  *      Balance", Anthropic "credit balance is too low", OpenCode Zen
@@ -92,17 +85,12 @@
 import type { AgentDiagnostic } from "./agentHangReport.ts";
 import { formatAgentHangBody } from "./agentHangReport.ts";
 import {
-  CREDENTIAL_POOL_REFUSED_MARKER,
   CREDENTIAL_REJECTED_MARKER,
   formatApiKeyErrorSummary,
   isApiKeyAuthError,
   isByokSetupError,
-  ROUTER_UNFUNDED_MARKER,
-  SECRETS_UNAVAILABLE_MARKER,
 } from "./apiKeys.ts";
-import { getApiUrl } from "./apiUrl.ts";
-import { BillingError, formatBillingErrorSummary } from "./billingErrors.ts";
-import { MODEL_ACCESS_MARKER } from "./modelAccess.ts";
+import { REVIEWX_REPO_URL } from "./footer.ts";
 import { PROVIDER_DASHBOARDS } from "./providerDashboards.ts";
 import {
   extractProviderId,
@@ -112,7 +100,6 @@ import {
   isProviderMissingCredential,
   isProviderNoRoutableEndpoints,
   isProviderUsageLimit,
-  isRouterKeylimitExhaustedError,
   isTransientUpstreamError,
 } from "./providerErrors.ts";
 
@@ -171,13 +158,12 @@ function isZenFreeTierGateError(message: string): boolean {
 }
 
 function formatZenFreeTierGateSummary(input: { owner: string; name: string; raw: string }): string {
-  const settingsUrl = `${getApiUrl()}/console/${input.owner}/${input.name}`;
   return [
-    "**Zen's free tier refused a request this run made.** OpenCode Zen currently rejects free-model requests whose tool list is missing one of the built-in tools it expects ([upstream issue](https://github.com/anomalyco/opencode/issues/49587)). Pullfrog sends all of them, but opencode's mid-run context-compaction request carries no tools at all, and a repo-level `opencode.json` that denies `bash`, `glob`, `grep` or `read` strips that tool from every request.",
+    "**Zen's free tier refused a request this run made.** OpenCode Zen currently rejects free-model requests whose tool list is missing one of the built-in tools it expects ([upstream issue](https://github.com/anomalyco/opencode/issues/49587)). ReviewX sends all of them, but opencode's mid-run context-compaction request carries no tools at all, and a repo-level `opencode.json` that denies `bash`, `glob`, `grep` or `read` strips that tool from every request.",
     "",
     'Pick a paid model for this repo, drop any `"deny"` on `bash`, `glob`, `grep` or `read` from the repo\'s `opencode.json` if it sets one, or split the PR so the run stays under the compaction threshold and re-trigger.',
     "",
-    `[Model settings →](${settingsUrl}) · [Ask in Discord →](https://discord.gg/8y96raFg8e)`,
+    `[Setup docs →](${REVIEWX_REPO_URL}#model-keys)`,
     "",
     `\`\`\`\n${input.raw}\n\`\`\``,
   ].join("\n");
@@ -188,13 +174,12 @@ function formatNoProviderAvailableSummary(input: {
   name: string;
   raw: string;
 }): string {
-  const settingsUrl = `${getApiUrl()}/console/${input.owner}/${input.name}`;
   return [
     "**The provider refused to serve this model.** It's listed in the catalog, but the account this run used has no access to it — so the request was accepted and then declined.",
     "",
-    "This often happens when Pullfrog auto-selects a model your account can't reach. Pin an explicit model for this repo, or add credentials for the provider that was picked.",
+    "This often happens when ReviewX auto-selects a model your account can't reach. Pin an explicit model for this repo, or add credentials for the provider that was picked.",
     "",
-    `[Model settings →](${settingsUrl}) · [Setup docs →](https://docs.pullfrog.com/keys) · [Ask in Discord →](https://discord.gg/8y96raFg8e)`,
+    `[Setup docs →](${REVIEWX_REPO_URL}#model-keys)`,
     "",
     `\`\`\`\n${input.raw}\n\`\`\``,
   ].join("\n");
@@ -211,26 +196,24 @@ function isRunTimeoutError(message: string): boolean {
 }
 
 function formatRunTimeoutSummary(input: { owner: string; name: string; raw: string }): string {
-  const settingsUrl = `${getApiUrl()}/console/${input.owner}/${input.name}`;
   return [
     "**This run hit its time limit while still working, so it stopped before finishing.**",
     "",
     "Give runs longer with `--timeout=2h` (or `--notimeout`) in this repo's instructions — or raise the workflow's `timeout` input if it sets one, since that input wins. A smaller PR or a lower effort also finishes sooner.",
     "",
-    `[Repo settings →](${settingsUrl}) · [Flags →](https://docs.pullfrog.com/flags)`,
+    `[Flags →](${REVIEWX_REPO_URL}#flags)`,
     "",
     `\`\`\`\n${input.raw}\n\`\`\``,
   ].join("\n");
 }
 
 function formatContextOverflowSummary(input: { owner: string; name: string; raw: string }): string {
-  const settingsUrl = `${getApiUrl()}/console/${input.owner}/${input.name}`;
   return [
-    "**This run exceeded the model's context window.** Pullfrog read more than the model could hold, so it stopped before finishing.",
+    "**This run exceeded the model's context window.** ReviewX read more than the model could hold, so it stopped before finishing.",
     "",
     `Pick a model with a larger context window, or split this PR into smaller ones and re-trigger.`,
     "",
-    `[Model settings →](${settingsUrl}) · [Ask in Discord →](https://discord.gg/8y96raFg8e)`,
+    `[Setup docs →](${REVIEWX_REPO_URL}#model-keys)`,
     "",
     `\`\`\`\n${input.raw}\n\`\`\``,
   ].join("\n");
@@ -246,7 +229,7 @@ function formatContextOverflowSummary(input: { owner: string; name: string; raw:
  */
 function formatGenericFailure(errorMessage: string): string {
   return [
-    "Pullfrog ran into an unexpected error and couldn't finish this run. The underlying error is below — re-trigger Pullfrog to try again, and reach out to support if it keeps happening.",
+    "ReviewX ran into an unexpected error and couldn't finish this run. The underlying error is below — re-trigger ReviewX to try again.",
     "",
     "```",
     errorMessage,
@@ -377,7 +360,7 @@ function formatTransientUpstreamBody(errorMessage: string): string {
   return [
     `**${who} had a temporary upstream failure.**`,
     "",
-    "The provider refused or dropped the request mid-run — nothing in your repo or your credentials is at fault. Re-trigger Pullfrog; if it keeps happening, check the provider's status page.",
+    "The provider refused or dropped the request mid-run — nothing in your repo or your credentials is at fault. Re-trigger ReviewX; if it keeps happening, check the provider's status page.",
     "",
     `\`\`\`\n${errorMessage}\n\`\`\``,
   ].join("\n");
@@ -398,7 +381,7 @@ function formatProviderNoRoutableEndpoints(input: {
     "",
     "Your OpenRouter data policy excludes every provider currently serving the configured model, so the request was refused before any model work happened. Allow more providers, or pick a model your policy already covers.",
     "",
-    `[OpenRouter data policy →](${OPENROUTER_PRIVACY_URL}) · [Configure model →](${getApiUrl()}/console/${input.owner}/${input.name})`,
+    `[OpenRouter data policy →](${OPENROUTER_PRIVACY_URL}) · [Setup docs →](${REVIEWX_REPO_URL}#model-keys)`,
     "",
     `\`\`\`\n${input.errorMessage}\n\`\`\``,
   ].join("\n");
@@ -414,7 +397,7 @@ function formatProviderMissingCredential(input: {
     "",
     "The run started without a key for the provider it ended up using, so the request was refused before any model work happened. Nothing was billed, and no key of yours was rejected — add a provider key, or pick a model you already have one for.",
     "",
-    `[Configure model →](${getApiUrl()}/console/${input.owner}/${input.name})`,
+    `[Setup docs →](${REVIEWX_REPO_URL}#model-keys)`,
     "",
     `\`\`\`\n${input.errorMessage}\n\`\`\``,
   ].join("\n");
@@ -431,7 +414,7 @@ function formatByokSetupSummary(input: { owner: string; name: string; raw: strin
     "",
     input.raw,
     "",
-    `[Configure model →](${getApiUrl()}/console/${input.owner}/${input.name})`,
+    `[Setup docs →](${REVIEWX_REPO_URL}#model-keys)`,
   ].join("\n");
 }
 
@@ -442,9 +425,8 @@ function formatProviderModelNotFoundSummary(input: {
 }): string {
   return (
     `The configured model is not in OpenCode's catalog. ` +
-    `Pick a different model for \`${input.owner}/${input.name}\` where it is set — the Pullfrog console, ` +
-    `the workflow's \`model\` input, or the \`PULLFROG_MODEL\` variable — ` +
-    `or contact support if this persists.\n\n` +
+    `Pick a different model for \`${input.owner}/${input.name}\` where it is set — ` +
+    `the workflow's \`model\` input or the \`REVIEWX_MODEL\` variable.\n\n` +
     `\`\`\`\n${input.raw}\n\`\`\``
   );
 }
@@ -460,7 +442,7 @@ function formatProviderUsageLimit(input: { owner: string; name: string; raw: str
     "",
     "A subscription window resets on its own, so re-trigger after it does; a limit set on a pay-as-you-go workspace has to be raised. A model on another provider can run in the meantime.",
     "",
-    `[Model settings →](${getApiUrl()}/console/${input.owner}/${input.name}) · [Ask in Discord →](https://discord.gg/8y96raFg8e)`,
+    `[Setup docs →](${REVIEWX_REPO_URL}#model-keys)`,
     "",
     `\`\`\`\n${input.raw}\n\`\`\``,
   ].join("\n");
@@ -478,7 +460,7 @@ function formatProviderErrorBody(input: { owner: string; name: string; raw: stri
     "",
     "The error is below. If it names your key, plan or balance, fix that with the provider or pick another model before re-triggering.",
     "",
-    `[Model settings →](${getApiUrl()}/console/${input.owner}/${input.name}) · [Ask in Discord →](https://discord.gg/8y96raFg8e)`,
+    `[Setup docs →](${REVIEWX_REPO_URL}#model-keys)`,
     "",
     `\`\`\`\n${input.raw}\n\`\`\``,
   ].join("\n");
@@ -488,61 +470,12 @@ export function renderRunError(input: {
   errorMessage: string;
   repo: { owner: string; name: string };
   agentDiagnostic: AgentDiagnostic | undefined;
-  /** the run is spending Pullfrog's Router wallet (a proxy key was minted), not
-   * the user's own provider credential. `payload.proxyModel` at both call
-   * sites. */
-  routerActive: boolean;
 }): RenderedRunError {
-  // reclassify mid-run OpenRouter "key budget exhausted" as BillingError so
-  // the user gets the same actionable copy as a /api/proxy-token 402.
-  //
-  // gated on `routerActive`: the identical wire text is emitted when a BYOK
-  // customer's OWN OpenRouter wallet runs dry, and sending them to top up a
-  // Pullfrog Router balance they don't use is advice that cannot work. on a BYOK
-  // run this falls through to the provider-billing branch below, which now
-  // matches the same shapes and links openrouter.ai instead. see #1135.
-  const billingError =
-    input.routerActive && isRouterKeylimitExhaustedError(input.errorMessage)
-      ? new BillingError(input.errorMessage, { code: "router_keylimit_exhausted" })
-      : null;
-
-  if (billingError) {
-    const body = formatBillingErrorSummary(billingError, input.repo.owner);
-    return { summary: body, comment: body };
-  }
-
-  // model-access gate (explicit `--model`/family flag the run can't serve):
-  // the thrown message already IS the rendered markdown body (built by
-  // `buildModelAccessError`), so surface it verbatim on both surfaces.
-  if (input.errorMessage.includes(MODEL_ACCESS_MARKER)) {
-    return { summary: input.errorMessage, comment: input.errorMessage };
-  }
-
-  // run-context couldn't hand over Pullfrog-stored secrets. same verbatim
-  // contract as the model-access body above, and checked before the api-key
-  // branch below so it can't be rewritten into a "go add a key" CTA — the key
-  // is already there.
-  if (input.errorMessage.includes(SECRETS_UNAVAILABLE_MARKER)) {
-    return { summary: input.errorMessage, comment: input.errorMessage };
-  }
-
-  // an unfunded Router account whose BYOK search also came up empty. same
-  // verbatim contract, and likewise ahead of the api-key branch — that branch
-  // rebuilds any body carrying `no API key found` into the generic
-  // "add a provider key" copy, which is the exact wrong CTA here.
-  if (input.errorMessage.includes(ROUTER_UNFUNDED_MARKER)) {
-    return { summary: input.errorMessage, comment: input.errorMessage };
-  }
-
   // a credential the provider rejected before the agent started. the body
   // already names the credential and its real remedy, and it QUOTES the
   // provider's wording — so without this guard the api-key branch below sniffs
   // that quote and rebuilds it into the generic "rotate your key" CTA.
-  // the credential pool's refusal quotes one verdict per credential, same contract.
-  if (
-    input.errorMessage.includes(CREDENTIAL_REJECTED_MARKER) ||
-    input.errorMessage.includes(CREDENTIAL_POOL_REFUSED_MARKER)
-  ) {
+  if (input.errorMessage.includes(CREDENTIAL_REJECTED_MARKER)) {
     return { summary: input.errorMessage, comment: input.errorMessage };
   }
 

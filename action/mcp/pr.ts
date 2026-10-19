@@ -1,8 +1,7 @@
 import { type } from "arktype";
-import { buildPullfrogFooter, stripExistingFooter } from "../utils/buildPullfrogFooter.ts";
+import { buildFooter, stripExistingFooter } from "../utils/footer.ts";
 import { log } from "../utils/cli.ts";
 import { fixDoubleEscapedString } from "../utils/fixDoubleEscapedString.ts";
-import { patchWorkflowRunFields } from "../utils/patchWorkflowRunFields.ts";
 import { $ } from "../utils/shell.ts";
 import { resolveRepoCtx } from "./resolveRepoCtx.ts";
 import type { ToolContext } from "./server.ts";
@@ -21,16 +20,11 @@ export const PullRequest = type({
 });
 
 function buildPrBodyWithFooter(ctx: ToolContext, body: string): string {
-  const footer = buildPullfrogFooter({
-    triggeredBy: true,
+  const footer = buildFooter({
     workflowRun: ctx.runId
       ? { owner: ctx.repo.owner, repo: ctx.repo.name, runId: ctx.runId, jobId: ctx.jobId }
       : undefined,
     model: ctx.toolState.model,
-    clamped: ctx.toolState.modelClamped,
-    unselectedProxyDefault: ctx.toolState.unselectedProxyDefault,
-    oss: ctx.oss,
-    owner: ctx.repo.owner,
   });
 
   const bodyWithoutFooter = stripExistingFooter(fixDoubleEscapedString(body));
@@ -116,17 +110,6 @@ export function CreatePullRequestTool(ctx: ToolContext) {
         } catch {
           log.info(`failed to request review from ${reviewer} on PR #${result.data.number}`);
         }
-      }
-
-      // workflow-run linkage only tracks the PRIMARY repo's PR (the run lives there).
-      if (
-        rc.access === "primary" &&
-        typeof result.data.node_id === "string" &&
-        result.data.node_id.length > 0
-      ) {
-        await patchWorkflowRunFields(ctx, {
-          prNodeId: result.data.node_id,
-        });
       }
 
       return {

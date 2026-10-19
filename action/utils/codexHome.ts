@@ -55,8 +55,6 @@ import { join } from "node:path";
 import { log } from "./cli.ts";
 import { type CodexAuthBody, parseCodexAuthBody, stringifyCodexAuthBody } from "./codexOAuth.ts";
 import { decodeJwtExpMs } from "./oauthShared.ts";
-import { SUBSCRIPTION_DATA_DIR_STATE } from "./oauthWriteback.ts";
-import { saveSecretState } from "./secretCommands.ts";
 import { parseXaiAuthBody, type XaiAuthBody } from "./xaiOAuth.ts";
 
 const CODEX_AUTH_ENV = "CODEX_AUTH_JSON";
@@ -411,12 +409,6 @@ function bootstrapPullfrogDataDir(): string | null {
     return null;
   }
   // one per run: concurrent runs on a self-hosted host shared opencode's SQLite db and
-  // the codex CLI's home here (#1475). the post hook removes it after the writeback; a
-  // GitHub-hosted VM is discarded anyway, so it skips that post-step npm bootstrap.
-  const runDir = mkdtempSync(join(PULLFROG_DATA_DIR, "run-"));
-  // not a credential: this is just the one state writer the secret-command guard allows.
-  if (process.env.RUNNER_ENVIRONMENT !== "github-hosted") {
-    saveSecretState(SUBSCRIPTION_DATA_DIR_STATE, runDir);
-  }
-  return runDir;
+  // the codex CLI's home here (#1475).
+  return mkdtempSync(join(PULLFROG_DATA_DIR, "run-"));
 }

@@ -224,12 +224,6 @@ export interface ToolState {
   // the error-path / exit-signal callers from a redundant second PATCH
   // after the success path already persisted.
   learningsPersistAttempted?: boolean;
-  // org-level cross-repo learnings tmpfile — same lifecycle as the repo-level
-  // learnings file but seeded from `Account.xrepoLearnings` and only on
-  // --xrepo runs. persisted to /api/account/[owner]/xrepo-learnings.
-  xrepoLearningsFilePath?: string;
-  xrepoLearningsSeed?: string;
-  xrepoLearningsPersistAttempted?: boolean;
   output?: string | undefined;
   usageEntries: AgentUsage[];
   model?: string | undefined;
@@ -242,26 +236,6 @@ export interface ToolState {
   // precedence, and codex picks auth.json or an API key on mutually exclusive
   // branches. left unset rather than guessed where a harness cannot tell.
   credential?: AgentCredential | undefined;
-  // true when the run fell back to the default proxy model purely because the
-  // repo has no model selected (Router billing + "auto"). carried into footers
-  // so the user can see they're on the cost-optimized default — a weaker
-  // reviewer than a frontier model — and pick one. literal record of an event
-  // that happened, matching the ToolState design rule.
-  unselectedProxyDefault?: boolean | undefined;
-  // set in proxy.ts when a no-card Router account had a model (or the
-  // intelligent tier) selected and the server clamped it to the efficient
-  // default — custom picks are card-gated wholesale. carried into footers so
-  // the PR shows "Using <Kimi K2> (<Claude Opus> needs a payment method)"
-  // rather than silently presenting Kimi as the user's pick. literal record
-  // of an event — matches the ToolState design rule. `reason` distinguishes
-  // the card gate ("card") from a pick that has no openRouterResolve yet and
-  // no stored provider key ("noRouterPath", a model OpenRouter doesn't serve
-  // yet).
-  modelClamped?: { from: string; reason: "card" | "noRouterPath" | "oss" | "trial" } | undefined;
-  // true when the run's model costs are covered by the Pullfrog for OSS
-  // program. carried into footers (incl. error comments built from toolState
-  // alone) so the "via Pullfrog for OSS" attribution is consistent everywhere.
-  oss?: boolean | undefined;
   todoTracker?: TodoTracker | undefined;
   // mutable handle the agent harness writes to as a run progresses (recent
   // stderr ring buffer reference, last provider-error label, event count).
@@ -269,14 +243,6 @@ export interface ToolState {
   // surfaces the same agent-side context the harness's own catch path returns
   // via `result.error`. see `utils/agentHangReport.ts`.
   agentDiagnostic?: AgentDiagnostic | undefined;
-  /**
-   * a `PATCH /api/workflow-run/:id` came back 404 — Pullfrog neither claimed a
-   * reservation for the run nor recorded it as a custom run, which is permanent for
-   * the life of the run (both happen at setup, strictly before any PATCH). latched so
-   * the remaining calls stop firing: one CI run spent 28 doomed round trips on it.
-   * see #1153.
-   */
-  workflowRunUnclaimed?: boolean | undefined;
 }
 
 interface InitToolStateParams {

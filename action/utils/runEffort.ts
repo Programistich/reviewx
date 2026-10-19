@@ -65,11 +65,6 @@ function resolveRunAlias(ctx: {
   payload: ResolvedPayload;
   resolvedModel?: string | undefined;
 }): ModelAlias | undefined {
-  const proxyModel = ctx.payload.proxyModel;
-  if (proxyModel) {
-    return modelAliases.find((a) => !a.fallback && a.openRouterResolve === proxyModel);
-  }
-
   const model = ctx.resolvedModel;
   if (!model) return undefined;
   // an azure deployment name is chosen by whoever created the deployment, so it
@@ -125,7 +120,7 @@ export function resolveRunEffort(ctx: {
     rung: resolveModelRung({
       slug: alias.slug,
       position,
-      useOpenRouter: !!ctx.payload.proxyModel,
+      useOpenRouter: false,
     }),
     alias,
   };

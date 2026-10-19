@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { buildCredentialPoolRefusedError, type RefusedCredential } from "./apiKeys.ts";
 import { renderRunError } from "./runErrorRenderer.ts";
 
 const repo = { owner: "acme", name: "widget" };
@@ -18,7 +17,6 @@ describe("renderRunError BYOK provider billing exhausted (#835)", () => {
       errorMessage: deepseekRaw,
       repo,
       agentDiagnostic: undefined,
-      routerActive: false,
     });
     expect(result.summary).toContain("`deepseek` account is out of credit");
     expect(result.summary).toContain("https://platform.deepseek.com/top_up");
@@ -32,7 +30,6 @@ describe("renderRunError BYOK provider billing exhausted (#835)", () => {
       errorMessage: anthropicRaw,
       repo,
       agentDiagnostic: undefined,
-      routerActive: false,
     });
     expect(result.comment).toContain("out of credit");
   });
@@ -42,7 +39,6 @@ describe("renderRunError BYOK provider billing exhausted (#835)", () => {
       errorMessage: opencodeZenRaw,
       repo,
       agentDiagnostic: undefined,
-      routerActive: false,
     });
     expect(result.comment).toContain("out of credit");
   });
@@ -52,7 +48,6 @@ describe("renderRunError BYOK provider billing exhausted (#835)", () => {
       errorMessage: "Insufficient balance — provider response with no providerID tag",
       repo,
       agentDiagnostic: undefined,
-      routerActive: false,
     });
     expect(result.comment).toContain("Your provider account is out of credit");
     expect(result.comment).not.toContain("Your your");
@@ -72,7 +67,6 @@ describe("renderRunError ProviderModelNotFoundError (#816)", () => {
       errorMessage: staleFreeRaw,
       repo,
       agentDiagnostic: undefined,
-      routerActive: false,
     });
     expect(result.summary).toContain("not in OpenCode's catalog");
     expect(result.summary).toContain("`acme/widget`");
@@ -85,7 +79,6 @@ describe("renderRunError ProviderModelNotFoundError (#816)", () => {
       errorMessage: bigPickleRaw,
       repo,
       agentDiagnostic: undefined,
-      routerActive: false,
     });
     expect(result.summary).toContain("not in OpenCode's catalog");
     expect(result.summary).toContain("big-pickle");
@@ -96,7 +89,6 @@ describe("renderRunError ProviderModelNotFoundError (#816)", () => {
       errorMessage: "activity timeout after 900s",
       repo,
       agentDiagnostic: undefined,
-      routerActive: false,
     });
     expect(result.summary).not.toContain("not in OpenCode's catalog");
   });
@@ -108,116 +100,10 @@ describe("renderRunError ProviderModelNotFoundError (#816)", () => {
         'opencode prompt failed: {"name":"UnknownError","data":{"message":"Unexpected server error. Check server logs for details.","ref":"err_27a81c03"}} — likely cause: Model not found: deepseek/deepseek-v4-flash. Did you mean: deepseek-flash, deepseek-v4-pro?',
       repo,
       agentDiagnostic: undefined,
-      routerActive: false,
     });
     expect(result.comment).toContain("not in OpenCode's catalog");
-    expect(result.comment).toContain("`PULLFROG_MODEL`");
+    expect(result.comment).toContain("`REVIEWX_MODEL`");
     expect(result.comment).toContain("Did you mean: deepseek-flash, deepseek-v4-pro?");
-  });
-});
-
-describe("renderRunError credential pool refusal (#1473)", () => {
-  const resetAt = new Date("2026-10-06T14:00:00Z");
-  const variants: RefusedCredential[] = [
-    {
-      name: "CLAUDE_CODE_OAUTH_TOKEN",
-      source: "repo",
-      verdict: {
-        status: "exhausted",
-        detail: "429: This request would exceed your account's rate limit. Please try again later.",
-        resetAt,
-      },
-    },
-    {
-      name: "CODEX_AUTH_JSON",
-      source: "account",
-      verdict: {
-        status: "exhausted",
-        detail: "the ChatGPT plan's usage limit is reached",
-        resetAt: undefined,
-      },
-    },
-    {
-      name: "GROK_AUTH_JSON",
-      source: "account",
-      verdict: { status: "rejected", detail: "rejected with 403" },
-    },
-    {
-      name: "OPENAI_API_KEY",
-      source: "account",
-      verdict: { status: "rejected", detail: "rejected with 401" },
-    },
-    {
-      name: "CODEX_AUTH_JSON",
-      source: "repo",
-      verdict: { status: "rejected", detail: "rejected with 401" },
-    },
-    {
-      name: "CLAUDE_CODE_OAUTH_TOKEN",
-      source: "account",
-      verdict: {
-        status: "rejected",
-        detail: "403: OAuth authentication is currently not allowed for this organization.",
-      },
-    },
-    {
-      name: "CODEX_AUTH_JSON",
-      source: "account",
-      verdict: { status: "rejected", detail: "refresh rejected at 2026-09-30T12:00:00.000Z" },
-    },
-    {
-      name: "CLAUDE_CODE_OAUTH_TOKEN",
-      source: "account",
-      verdict: { status: "rejected", detail: "401: OAuth access token has been revoked." },
-    },
-    {
-      name: "OPENAI_API_KEY",
-      source: "workflow",
-      verdict: {
-        status: "exhausted",
-        detail: "refused with 429: insufficient quota",
-        resetAt: undefined,
-      },
-    },
-  ];
-  const build = (refused: RefusedCredential[]) =>
-    buildCredentialPoolRefusedError({ model: "openai/gpt-6.1-sol", refused, ...repo });
-
-  it.each(variants)(
-    "passes $name ($verdict.detail) through verbatim on both surfaces",
-    (credential) => {
-      const body = build([credential]);
-      const result = renderRunError({
-        errorMessage: body,
-        repo,
-        agentDiagnostic: undefined,
-        routerActive: false,
-      });
-      expect(result.comment).toBe(body);
-      expect(result.summary).toBe(body);
-      expect(body).toContain(credential.verdict.detail);
-    }
-  );
-
-  it("gives each verdict the remedy its credential kind calls for", () => {
-    const body = build(variants);
-    expect(body).toContain("it resets at **2026-10-06 14:00 UTC**");
-    expect(body).toContain("`pullfrog auth codex`");
-    expect(body).toContain("https://platform.openai.com/api-keys");
-    expect(body).toContain("[Update it in Pullfrog →](");
-    expect(body).toContain("https://platform.openai.com/settings/organization/billing/overview");
-    expect(body.split("\n").filter((line) => line.startsWith("- "))).toHaveLength(variants.length);
-  });
-
-  it("points a rejected workflow key at the GitHub Actions secret", () => {
-    const body = build([
-      {
-        name: "OPENAI_API_KEY",
-        source: "workflow",
-        verdict: { status: "rejected", detail: "rejected with 401" },
-      },
-    ]);
-    expect(body).toContain("https://github.com/acme/widget/settings/secrets/actions");
   });
 });
 
@@ -253,7 +139,6 @@ describe("renderRunError provider-stated refusals (#1474)", () => {
       errorMessage: `provider error: ${text}`,
       repo,
       agentDiagnostic: undefined,
-      routerActive: false,
     });
     expect(result.comment).toContain(expected);
     expect(result.comment).not.toContain("Run failed.");
@@ -265,7 +150,6 @@ describe("renderRunError provider-stated refusals (#1474)", () => {
       errorMessage: "opencode prompt failed: fetch failed",
       repo,
       agentDiagnostic: undefined,
-      routerActive: false,
     });
     expect(result.comment.startsWith("**Run failed.**")).toBe(true);
     expect(result.summary).toContain("opencode prompt failed: fetch failed");

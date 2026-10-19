@@ -3,14 +3,12 @@ import { type } from "arktype";
 import * as yes from "yes";
 import { formatMcpToolRef } from "../external.ts";
 import { type CommentableLines, primaryRepoState } from "../toolState.ts";
-import { getApiUrl } from "../utils/apiUrl.ts";
-import { buildPullfrogFooter } from "../utils/buildPullfrogFooter.ts";
+import { buildFooter } from "../utils/footer.ts";
 import { log } from "../utils/cli.ts";
 import { countLinesInRanges, getDiffCoverageBreakdown } from "../utils/diffCoverage.ts";
 import { fixDoubleEscapedString } from "../utils/fixDoubleEscapedString.ts";
 import { isPullfrog } from "../utils/isPullfrog.ts";
 import { countOutstandingPullfrogThreads } from "../utils/outstandingThreads.ts";
-import { patchWorkflowRunFields } from "../utils/patchWorkflowRunFields.ts";
 import { deleteProgressComment } from "./comment.ts";
 import type { ToolContext } from "./server.ts";
 import { execute, getHttpStatus, tool } from "./shared.ts";
@@ -1119,36 +1117,23 @@ export async function createAndSubmitWithFooter(
 
   // once the pending draft exists, GitHub only allows one pending review per
   // user per PR — so ANY failure between here and successful submit must
-  // clean up, not just a submitReview throw. getApiUrl() can throw if
-  // API_URL is misconfigured, and future footer-building changes could
-  // introduce new throw paths. keep the whole body wrapped.
+  // clean up, not just a submitReview throw. future footer-building changes
+  // could introduce new throw paths. keep the whole body wrapped.
   try {
-    // Fix buttons are suppressed on approving reviews — those are mergeable
+    // the fix hint is suppressed on approving reviews — those are mergeable
     // by definition (the `> ✅ No new issues found.` tier, with no inline
-    // comments), so dispatching a fix run would be a UX trap.
+    // comments), so nudging a fix run would be a UX trap.
     const customParts: string[] = [];
     if (!opts.approved) {
-      const apiUrl = getApiUrl();
-      if (opts.hasComments) {
-        const fixAllUrl = `${apiUrl}/trigger/${ctx.repo.owner}/${ctx.repo.name}/${params.pull_number}?action=fix&review_id=${pending.data.id}`;
-        const fixApprovedUrl = `${apiUrl}/trigger/${ctx.repo.owner}/${ctx.repo.name}/${params.pull_number}?action=fix-approved&review_id=${pending.data.id}`;
-        customParts.push(`[Fix all ➔](${fixAllUrl})`, `[Fix 👍s ➔](${fixApprovedUrl})`);
-      } else {
-        const fixUrl = `${apiUrl}/trigger/${ctx.repo.owner}/${ctx.repo.name}/${params.pull_number}?action=fix&review_id=${pending.data.id}`;
-        customParts.push(`[Fix it ➔](${fixUrl})`);
-      }
+      customParts.push("comment `@reviewx fix` to address this review");
     }
 
-    const footer = buildPullfrogFooter({
+    const footer = buildFooter({
       workflowRun: ctx.runId
         ? { owner: ctx.repo.owner, repo: ctx.repo.name, runId: ctx.runId, jobId: ctx.jobId }
         : undefined,
       customParts,
       model: ctx.toolState.model,
-      clamped: ctx.toolState.modelClamped,
-      unselectedProxyDefault: ctx.toolState.unselectedProxyDefault,
-      oss: ctx.oss,
-      owner: ctx.repo.owner,
     });
 
     return await ctx.octokit.rest.pulls.submitReview({
@@ -1182,15 +1167,4 @@ export async function createAndSubmitWithFooter(
     }
     throw err;
   }
-}
-
-/**
- * report the review node ID so the WorkflowRun is marked as "review submitted".
- * exported for use in main.ts post-agent cleanup.
- */
-export async function reportReviewNodeId(
-  ctx: ToolContext,
-  params: { nodeId: string }
-): Promise<void> {
-  await patchWorkflowRunFields(ctx, { reviewNodeId: params.nodeId });
 }

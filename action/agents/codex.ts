@@ -40,12 +40,9 @@ import { getModelProvider, getProviderGatewayUrl, stripProviderPrefix } from "..
 import { AGENT_ACTIVITY_TIMEOUT_MS, getIdleMs, markActivity } from "../utils/activity.ts";
 import { log } from "../utils/cli.ts";
 import { installCodexHome } from "../utils/codexHome.ts";
-import type { OAuthWriteback } from "../utils/codexRefreshDetect.ts";
 import { installFromNpmTarball } from "../utils/install.ts";
-import { OAUTH_WRITEBACK_STATE } from "../utils/oauthWriteback.ts";
 import { findProviderErrorMatch } from "../utils/providerErrors.ts";
 import { resolveRunEffort } from "../utils/runEffort.ts";
-import { saveSecretState } from "../utils/secretCommands.ts";
 import { filterEnv } from "../utils/secrets.ts";
 import {
   DEFAULT_MAX_RETAINED_BYTES,
@@ -267,7 +264,7 @@ const CODEX_EFFORTS: readonly string[] = ["minimal", "low", "medium", "high", "x
  * makes the override do the thing the operator asked for.
  */
 function resolveCodexModel(ctx: AgentRunContext): string | undefined {
-  const specifier = ctx.payload.proxyModel ?? ctx.resolvedModel;
+  const specifier = ctx.resolvedModel;
   if (!specifier) return undefined;
   try {
     if (getModelProvider(specifier) === "openai") return stripProviderPrefix(specifier);
@@ -883,26 +880,6 @@ export const codex = agent({
       // valid only at ChatGPT's own backend
       gatewayUrl: codexHomeAuth ? undefined : getProviderGatewayUrl("openai/"),
     });
-
-    if (codexHomeAuth) {
-      // the CLI rewrites auth.json in place when the chain rotates; the post
-      // hook diffs it and PUTs the new blob back to Pullfrog. see
-      // wiki/codex-auth.md — a rotation we fail to persist expires in ~1h.
-      saveSecretState(
-        OAUTH_WRITEBACK_STATE,
-        JSON.stringify({
-          apiToken: ctx.apiToken,
-          entries: [
-            {
-              secretName: "CODEX_AUTH_JSON",
-              provider: "openai",
-              authPath: codexHomeAuth.authPath,
-              originalRefresh: codexHomeAuth.originalRefresh,
-            },
-          ] satisfies OAuthWriteback[],
-        })
-      );
-    }
 
     // the agent process needs the LLM credential and PATH; the boundary is the
     // tool layer, not the process env. when the native shell is off we hand it

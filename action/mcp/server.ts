@@ -3,13 +3,12 @@ import "./arkConfig.ts";
 import { createServer } from "node:net";
 import { setTimeout as sleep } from "node:timers/promises";
 import { FastMCP, type Tool } from "fastmcp";
-import { type AgentId, hasSimilarIssues, pullfrogMcpName, type XrepoConfig } from "../external.ts";
+import { type AgentId, pullfrogMcpName } from "../external.ts";
 import type { Mode } from "../modes.ts";
 import type { ToolState } from "../toolState.ts";
 import { closeBrowserDaemon } from "../utils/browser.ts";
 import type { OctokitWithPlugins } from "../utils/github.ts";
 import type { ResolvedPayload } from "../utils/payload.ts";
-import type { AccountPlan } from "../utils/runContext.ts";
 import type { RunContextData } from "../utils/runContextData.ts";
 import { CheckoutPrTool } from "./checkout.ts";
 import { GetCheckSuiteLogsTool } from "./checkSuite.ts";
@@ -52,9 +51,6 @@ import { SearchIssuesTool } from "./searchIssues.ts";
 import { SelectModeTool } from "./selectMode.ts";
 import { addTools, type PullfrogTool } from "./shared.ts";
 import { KillBackgroundTool, ShellTool } from "./shell.ts";
-import { SimilarIssuesTool } from "./similarIssues.ts";
-import { UploadFileTool } from "./upload.ts";
-import { CheckoutRepoTool, ListReposTool } from "./xrepo.ts";
 
 export interface ToolContext {
   agentId: AgentId;
@@ -67,44 +63,27 @@ export interface ToolContext {
   // when GitHub hands out a git token its push edge never accepts. undefined on
   // the external-GH_TOKEN path. see pushWithRetry + resolveTokens.
   refreshGitToken: ((stale: string) => Promise<string>) | undefined;
-  // contents:read token over the cross-repo READ set (read-tier secondary
-  // clones). undefined on single-repo runs. see resolveRepoCtx.
-  readToken: string | undefined;
   // credential for the `gh` tool, scoped to mirror the triggering user's own
   // repo role. undefined below the mirror threshold, which is what withholds
   // the tool. unlike the MCP token this one IS reachable by the agent — `gh`
   // can print it — so its scope is the whole boundary. see roleMirror.ts.
   ghToken: string | undefined;
-  // cross-repo access sets, resolved server-side. undefined ⇒ single-repo run.
-  // checkout_repo / list_repos gate on this; resolveRepoCtx routes by tier.
-  xrepo: XrepoConfig | undefined;
-  apiToken: string;
   modes: Mode[];
   postCheckoutScript: string | null;
   prepushScript: string | null;
   prApproveEnabled: boolean;
   reviewDrafts: boolean;
-  // globally-gated server-side (run-context ANDs the per-repo toggle with the
-  // `isAutonomousMaintenanceEnabled()` kill switch). gates the run-end
-  // autoMergeAfterApprove lifecycle action — there is deliberately NO
-  // agent-callable merge tool.
-  autoMergeEnabled: boolean;
   // commits are created via the GitHub API (server-side signed, Verified)
   // instead of local git commit + push_branch. see CommitChangesTool.
   signedCommits: boolean;
-  repoIntelligence: boolean;
   modeInstructions: Record<string, string>;
   toolState: ToolState;
   runId: number | undefined;
   jobId: string | undefined;
   mcpServerUrl: string;
   tmpdir: string;
-  // repo-level OSS flag + legacy-named account card signal. retained in the
-  // runtime context for existing consumers and observability.
-  oss: boolean;
-  plan: AccountPlan;
   // resolved upstream model specifier (e.g. "google/gemini-3.1-pro-preview").
-  // undefined when payload.proxyModel is set or when the alias is unresolvable.
+  // undefined when the alias is unresolvable.
   // used by the schema sanitizer to detect Gemini-routed traffic.
   resolvedModel: string | undefined;
 }
@@ -175,20 +154,6 @@ function buildCommonTools(ctx: ToolContext, outputSchema?: JsonSchema): Pullfrog
     GitFetchTool(ctx),
   ];
 
-  // uploads are signed against the API token, which run-context issues only with OIDC
-  if (ctx.apiToken) {
-    tools.push(UploadFileTool(ctx));
-  }
-
-  // cross-repo tools only surface on --xrepo runs (keeps the single-repo tool
-  // list unchanged). list_repos + checkout_repo gate further on ctx.xrepo.
-  if (ctx.xrepo) {
-    tools.push(ListReposTool(ctx), CheckoutRepoTool(ctx));
-  }
-
-  if (hasSimilarIssues({ repoIntelligence: ctx.repoIntelligence, event: ctx.payload.event })) {
-    tools.push(SimilarIssuesTool(ctx));
-  }
   if (ctx.payload.event.issue_number !== undefined && !ctx.payload.event.is_pr) {
     tools.push(SearchIssuesTool(ctx));
   }

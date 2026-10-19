@@ -1,5 +1,5 @@
 import { type RepoAccess, repoKey } from "../toolState.ts";
-import { createOctokit, type OctokitWithPlugins } from "../utils/github.ts";
+import type { OctokitWithPlugins } from "../utils/github.ts";
 import type { ToolContext } from "./server.ts";
 
 /**
@@ -25,7 +25,6 @@ export interface RepoCtx {
 // read-tier octokit clients, memoized by read token. keying by token (rather
 // than a single module slot) keeps long-lived processes — tests, `pnpm play`
 // loops — from handing back a client built for a different run's token.
-const readOctokitByToken = new Map<string, OctokitWithPlugins>();
 
 /**
  * resolve the execution context for a `repo`-scoped tool call.
@@ -51,41 +50,21 @@ export function resolveRepoCtx(ctx: ToolContext, repo?: string | undefined): Rep
     // registered on --xrepo runs (server.ts) — on a single-repo run it sends the
     // agent after a tool it cannot see, so it retries verbatim instead.
     throw new Error(
-      ctx.xrepo
-        ? `repo ${repoKey(owner, name)} is not a registered checkout — use checkout_repo first`
-        : `repo ${repoKey(owner, name)} is not a registered checkout — this run is single-repo, so omit \`repo\` to target ${owner}/${ctx.repo.name}`
+      `repo ${repoKey(owner, name)} is not a registered checkout — this run is single-repo, so omit \`repo\` to target ${owner}/${ctx.repo.name}`
     );
   }
 
   // primary + write secondaries share the write-tier tokens.
-  if (state.access !== "read") {
-    return {
-      owner,
-      name,
-      dir: state.dir,
-      access: state.access,
-      octokit: ctx.octokit,
-      gitToken: ctx.gitToken,
-      refreshGitToken: ctx.refreshGitToken,
-    };
-  }
-
-  // read-tier secondary: contents:read token, no PR/push capability.
-  if (!ctx.readToken) {
+  if (state.access === "read") {
     throw new Error(`no read token available for read-only repo ${owner}/${name}`);
-  }
-  let readOctokit = readOctokitByToken.get(ctx.readToken);
-  if (!readOctokit) {
-    readOctokit = createOctokit(ctx.readToken);
-    readOctokitByToken.set(ctx.readToken, readOctokit);
   }
   return {
     owner,
     name,
     dir: state.dir,
-    access: "read",
-    octokit: readOctokit,
-    gitToken: ctx.readToken,
+    access: state.access,
+    octokit: ctx.octokit,
+    gitToken: ctx.gitToken,
     refreshGitToken: ctx.refreshGitToken,
   };
 }

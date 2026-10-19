@@ -1,7 +1,6 @@
 // changes to tool permissions should be reflected in wiki/granular-tools.md
 
 import { existsSync, readdirSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { detect } from "package-manager-detector";
 import { agents } from "./agents/index.ts";
@@ -20,21 +19,11 @@ import {
   DEFAULT_ACTIVITY_CHECK_INTERVAL_MS,
 } from "./utils/activity.ts";
 import { resolveAgent, resolveModel } from "./utils/agent.ts";
-import {
-  buildRejectedCredentialError,
-  NoUsableCredentialError,
-  validateAgentApiKey,
-} from "./utils/apiKeys.ts";
-import { formatCommercialGateSummary } from "./utils/billingErrors.ts";
+import { buildRejectedCredentialError, validateAgentApiKey } from "./utils/apiKeys.ts";
 import { resolveBody } from "./utils/body.ts";
 import { log } from "./utils/cli.ts";
 import { installCodexAuth, installXaiAuth, PULLFROG_DATA_DIR } from "./utils/codexHome.ts";
 import { checkConfiguredCredentials } from "./utils/credentialFallback.ts";
-import {
-  initializeCredentialPool,
-  resolvePoolModel,
-  selectConfiguredCredential,
-} from "./utils/credentialPool.ts";
 import { recordDiffReadFromToolUse } from "./utils/diffCoverage.ts";
 import { onExitSignal } from "./utils/exitHandler.ts";
 import { resolveGit, setGitAuthServer } from "./utils/gitAuth.ts";
@@ -45,14 +34,7 @@ import {
   writeGitHubUsageSummaryToFile,
 } from "./utils/github.ts";
 import { resolveInstructions } from "./utils/instructions.ts";
-import {
-  persistLearnings,
-  persistXrepoLearnings,
-  seedLearningsFile,
-  seedXrepoLearningsFile,
-} from "./utils/learnings.ts";
 import { describeSetupFailure, executeLifecycleHook } from "./utils/lifecycle.ts";
-import { buildModelAccessError, decideModelAccess } from "./utils/modelAccess.ts";
 import { normalizeEnv, sanitizeSecret } from "./utils/normalizeEnv.ts";
 import {
   captureAuthorizedModels,
@@ -65,13 +47,9 @@ import {
   provisionPackageManager,
   resolvePackageManagerSpec,
 } from "./utils/packageManager.ts";
-import { aggregateUsage, patchWorkflowRunFields } from "./utils/patchWorkflowRunFields.ts";
 import { resolveOutputSchema, resolvePayload, resolvePromptInput } from "./utils/payload.ts";
-import { resolveTrialFallback, runProxyResolution } from "./utils/proxy.ts";
-import { fetchPreviousSnapshot, persistSummary, seedSummaryFile } from "./utils/prSummary.ts";
 import { handleAgentResult } from "./utils/run.ts";
 import { resolveRunContextData } from "./utils/runContextData.ts";
-import { ossEffortFloor } from "./utils/runEffort.ts";
 import { renderRunError } from "./utils/runErrorRenderer.ts";
 import {
   finalizeSuccessRun,
@@ -132,14 +110,7 @@ export async function main(): Promise<MainResult> {
   // get job token for initial API calls
   const jobToken = getJobToken();
   const initialOctokit = createOctokit(jobToken);
-  const runContext = await resolveRunContextData({
-    octokit: initialOctokit,
-    token: jobToken,
-    runType: typeof resolvedPromptInput === "string" ? undefined : resolvedPromptInput.type,
-    plainPrompt: typeof resolvedPromptInput === "string",
-    routedTier:
-      typeof resolvedPromptInput === "string" ? undefined : resolvedPromptInput.routing?.tier,
-  });
+  const runContext = await resolveRunContextData({ octokit: initialOctokit });
   timer.checkpoint("runContextData");
 
   const payload = resolvePayload(resolvedPromptInput, runContext.repoSettings);
@@ -154,7 +125,6 @@ export async function main(): Promise<MainResult> {
     dir: process.cwd(),
   });
   toolState.model = payload.model;
-  toolState.oss = runContext.oss;
   // seed the comment target before every terminal branch. `reportErrorToComment`
   // reads only toolState, so silent triggers otherwise have nowhere to post.
   if (payload.event.issue_number !== undefined) {
@@ -173,27 +143,6 @@ export async function main(): Promise<MainResult> {
           requestToken: process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN,
         }
       : null;
-
-  if (runContext.commercialRefused) {
-    // gate-refusal path: posts one comment and exits, so no agent and no gh token
-    await using _commentTokenRef = await resolveTokens({
-      push: "disabled",
-      authorPermission: undefined,
-      oidc: oidcCredentials,
-    });
-    const errorMessage = {
-      commercial: "Pro trial expired for this organization",
-      subscription_ended: "Pro subscription ended for this organization",
-      subscription_unpaid: "Pro renewal failed for this organization",
-    }[runContext.commercialRefused];
-    log.error(errorMessage);
-    const body = formatCommercialGateSummary({
-      reason: runContext.commercialRefused,
-      ownerLogin: runContext.repo.owner,
-    });
-    await writeRunErrorOutputs({ rendered: { summary: body, comment: body }, toolState });
-    return { success: false, error: errorMessage };
-  }
 
   // tmpdir hoisted out of the try block: `installFromNpmTarball` reads
   // PULLFROG_TEMP_DIR (set as a side effect of createTempDirectory) when
@@ -233,43 +182,13 @@ export async function main(): Promise<MainResult> {
   const opencodeCliPath = await agents.opencode.install();
   captureBaselineModels({ cliPath: opencodeCliPath, tmpdir });
 
-  // DRAGON: nothing above this block may resolve a model or read a provider env var — console-stored
-  // config (`OPENAI_COMPATIBLE_MODEL`, `BEDROCK_MODEL_ID`, …) is not in process.env yet. 0.1.85 did, and broke every such run (#1433).
-  // inject account-level secrets into process.env (YAML secrets take precedence).
-  // sanitizeSecret trims + masks so accidental trailing whitespace doesn't leak
-  // through GitHub Actions' line-based log masking. whitespace-only values
-  // return null and skip injection so the user sees a clear missing-key error.
-  const injected: string[] = [];
-  if (runContext.dbSecrets) {
-    for (const [key, value] of Object.entries(runContext.dbSecrets)) {
-      if (!process.env[key]) {
-        const sanitized = sanitizeSecret(key, value);
-        if (sanitized === null) continue;
-        process.env[key] = sanitized;
-        injected.push(key);
-      }
-    }
-    const count = Object.keys(runContext.dbSecrets).length;
-    if (count > 0) log.info(`» ${count} db secret(s) loaded`);
-  }
-
-  // load one stored subscription per provider for the discovery below. `injected` keeps a
-  // workflow credential distinct from a stored one now that both sit in process.env.
-  await initializeCredentialPool({ ctx: runContext, slug: payload.model, injected });
-
-  // materialize the subscription auth.json entries (idempotent — the opencode
-  // agent re-calls both inside run() and writes the same file; the writer
-  // merges per provider so neither clobbers the other). this has to land
-  // BEFORE captureAuthorizedModels so OpenCode's model introspection sees the
-  // OAuth-routed models: measured, `opencode models` lists 0 `xai/*` entries
-  // without the Grok credential on disk and 12 with it, so skipping this
-  // would read a subscription-only account as unable to run its own models
-  // and fall the run back to the free tier.
+  // materialize the subscription auth.json entries from env (CODEX_AUTH_JSON,
+  // GROK_AUTH_JSON). this has to land BEFORE captureAuthorizedModels so
+  // OpenCode's model introspection sees the OAuth-routed models.
   installCodexAuth();
   installXaiAuth();
 
-  // capture the AUTHORIZED model set after dbSecrets + Codex auth.json are
-  // applied. this is the authoritative source for the BYOK fallback
+  // capture the AUTHORIZED model set after Codex auth.json is applied. this is the authoritative source for the BYOK fallback
   // decision and the opencode-agent path of validateAgentApiKey — strictly
   // more accurate than the static envVars/managedCredentials catalog,
   // which can miss new auth shapes.
@@ -289,21 +208,10 @@ export async function main(): Promise<MainResult> {
     setEnvAllowlist(runContext.repoSettings.envAllowlist);
   }
 
-  // surface a narrowed cross-repo request in the run output (not just the
-  // server-side dispatch log) so the triggerer sees what wasn't granted.
-  const xrepoUnavailable = payload.xrepo?.unavailable ?? [];
-  if (xrepoUnavailable.length > 0) {
-    log.warning(
-      `» --xrepo: requested but not granted: ${xrepoUnavailable.join(", ")} (unknown repo, different owner, or you lack access)`
-    );
-  }
-
   // resolve tokens first — acquireNewToken needs OIDC env vars for token exchange
   await using tokenRef = await resolveTokens({
     push: payload.push,
     authorPermission: payload.event.authorPermission,
-    xrepo: payload.xrepo,
-    xrepoGrant: payload.xrepoGrant,
     oidc: oidcCredentials,
   });
 
@@ -339,28 +247,12 @@ export async function main(): Promise<MainResult> {
     delete process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
   }
 
-  // Proxy decision: mint an OpenRouter key for OSS repos or managed billing
-  // accounts. BillingError (402) and TransientError (503) get rendered inside
-  // `runProxyResolution` before being rethrown — handled here (not in the
-  // outer catch) because the outer catch needs `toolContext` (not yet built)
-  // for its general-purpose error path.
-  await runProxyResolution({
-    payload,
-    oss: runContext.oss,
-    proxyModel: runContext.proxyModel,
-    oidcCredentials,
-    repo: runContext.repo,
-    toolState,
-  });
-
   // create octokit with MCP token for GitHub API calls.
   // the refresh handles mid-run token invalidation (#891)
   const octokit = createOctokit(tokenRef.mcpToken, getMcpTokenRefresh());
 
   const runInfo = await resolveRun({ octokit });
   let toolContext: ToolContext | undefined;
-  // this start's own result, reported on the end-of-run PATCH in `finally`
-  let succeeded = false;
   let progressCallbackDisabled = false;
   let todoTracker: ReturnType<typeof createTodoTracker> | undefined;
   let vertexCredentials: VertexCredentials | undefined;
@@ -391,74 +283,13 @@ export async function main(): Promise<MainResult> {
     await using gitAuthServer = await startGitAuthServer(tmpdir);
     setGitAuthServer(gitAuthServer);
 
-    let resolvedModel = resolveModel({ slug: payload.model });
-    if (!resolvedModel && !payload.proxyModel && runContext.credentialAccess?.candidates.length) {
-      resolvedModel = resolvePoolModel({
-        codexAgent: runContext.repoSettings.codexAgent || payload.codexArm === true,
-      });
-    }
-    let poolSelected =
-      !payload.proxyModel &&
-      (await selectConfiguredCredential({
-        ctx: runContext,
-        model: resolvedModel,
-      }));
-
-    // model-access gate: an explicitly-requested per-run model (`--opus`,
-    // `--model=<slug>`) that this run can't serve hard-fails here, before the
-    // agent starts. standing defaults keep `modelExplicit = false` and fall
-    // through to `validateAgentApiKey`'s missing-key error below (#938).
-    // proxy / byok decisions mutate `payload.proxyModel` so the resolution
-    // beneath sees the corrected routing.
-    const access = decideModelAccess({
-      modelExplicit: payload.modelExplicit ?? false,
-      model: payload.model,
-      oss: runContext.oss,
-      proxyActive: !!payload.proxyModel,
-      subsidyTarget: runContext.proxyModel,
-      resolvedModel,
-      authorized: getAuthorizedModels(),
-    });
-    if (access.kind === "error") {
-      throw new Error(
-        buildModelAccessError({
-          reason: access.reason,
-          model: payload.model ?? "(unknown)",
-          owner: runContext.repo.owner,
-          name: runContext.repo.name,
-        })
-      );
-    }
-    if (access.kind === "proxy") payload.proxyModel = access.target;
-    if (access.kind === "byok") {
-      payload.proxyModel = undefined;
-      if (!poolSelected)
-        poolSelected = await selectConfiguredCredential({
-          ctx: runContext,
-          model: resolvedModel,
-        });
-    }
-
-    // a subsidised run is Pullfrog's spend, so it is pinned to `high` on
-    // whatever ladder the funded model publishes — matching what every OSS run
-    // got before this setting existed. see `ossEffortFloor` for why this asks
-    // for the rung by name rather than taking position 0.
-    if (runContext.oss && payload.proxyModel) {
-      payload.effort = ossEffortFloor({ payload });
-    }
-
-    if (payload.proxyModel) resolvedModel = undefined;
+    const resolvedModel = resolveModel({ slug: payload.model });
 
     // ask the providers whether the configured model's credentials still work
     // before committing to it. a rejected credential becomes an accurate error naming
     // the credential — never the 401-three-seconds-in that used to send users
-    // to a GitHub Actions secrets page they had never put a key in. skipped
-    // for proxy runs for the same reason validateAgentApiKey is: the server
-    // minted the key and is the authority on it.
-    const credentials =
-      payload.proxyModel || poolSelected
-        ? { kind: "ok" as const }
-        : await checkConfiguredCredentials({ model: resolvedModel });
+    // to a GitHub Actions secrets page they had never put a key in.
+    const credentials = await checkConfiguredCredentials({ model: resolvedModel });
     if (credentials.kind === "dead") {
       throw new Error(
         buildRejectedCredentialError({
@@ -466,35 +297,22 @@ export async function main(): Promise<MainResult> {
           reason: credentials.reason,
           owner: runContext.repo.owner,
           name: runContext.repo.name,
-          inPullfrogStore: credentials.credential in (runContext.dbSecrets ?? {}),
         })
       );
     }
     vertexCredentials = materializeVertexCredentials({ model: resolvedModel });
 
-    let agent = resolveAgent({
-      model: resolvedModel,
-      proxyModel: payload.proxyModel,
-      // the account opt-in and the canary arm are both admissions to codex, so
-      // they OR: an account that opted in explicitly always gets it, and the
-      // canary widens the pool without ever demoting a run that already had it.
-      codexAgent: runContext.repoSettings.codexAgent || payload.codexArm === true,
-    });
+    const agent = resolveAgent({ model: resolvedModel });
 
     // record the harness that actually ran. `agent` is what the run DID;
     // `WorkflowRun.codexArm` is what it was ASSIGNED — comparing arms on the
     // assignment is what keeps runs that die before this PATCH in the analysis.
     toolState.agent = agent.name;
 
-    // agent-agnostic best-effort for the model that ran: proxy spec for
-    // router/oss runs, else the resolved model, else the slug.
-    // payload.model is just the stored slug (often undefined for router/oss
-    // runs that derive the target from proxyModel). matching priority with
-    // resolveModelForLog so the "Using `…`" badge reflects what actually ran.
-    // the opencode agent refines this from `rawModel` once it auto-selects (a
-    // pick main.ts can't know — see opencode.ts), so auto-select runs persist
-    // their real model rather than this placeholder.
-    const effectiveModel = payload.proxyModel ?? resolvedModel ?? payload.model;
+    // agent-agnostic best-effort for the model that ran: the resolved model,
+    // else the slug. the opencode agent refines this from `rawModel` once it
+    // auto-selects (a pick main.ts can't know — see opencode.ts).
+    const effectiveModel = resolvedModel ?? payload.model;
     // surface it in comment/review footers and persist it on the end-of-run PATCH.
     toolState.model = effectiveModel;
 
@@ -504,63 +322,14 @@ export async function main(): Promise<MainResult> {
     // issue context) and the GHA job summary, with model-specific fix
     // instructions. Without this, the agent launches with no key, the LLM
     // provider 401s, and the run dies in seconds with a synthetic "Invalid
-    // API key" — the silent-churn pattern that took out 15 accounts
-    // pre-launch.
-    //
-    // skipped when proxyModel is set: `runProxyResolution` already minted
-    // OPENROUTER_API_KEY and the server-side gate (`run-context/route.ts`)
-    // is the authority on "can this run use the router". the `authorized`
-    // set was captured BEFORE the proxy mint, so it doesn't see the
-    // openrouter slug — validating would spuriously throw.
-    if (!payload.proxyModel) {
-      try {
-        validateAgentApiKey({
-          agent,
-          model: effectiveModel,
-          authorized: getAuthorizedModels(),
-          owner: runContext.repo.owner,
-          name: runContext.repo.name,
-          secretsUnavailable: runContext.secretsUnavailable,
-          routerUnfunded: runContext.routerUnfunded,
-        });
-      } catch (missingKey) {
-        // the trial fallback fires HERE and nowhere earlier: this is the first
-        // moment anything knows that no credential could pay for the run.
-        // `validateAgentApiKey` has just searched everything the server cannot
-        // see — workflow `env:`, GitHub Actions secrets, the harness-specific
-        // shapes — so an earlier mint would have downgraded accounts that were
-        // fine. the server only granted permission; the verdict is here.
-        //
-        // and only THAT verdict: the same function also throws when opencode
-        // could not start, when a Bedrock/Vertex/Azure/OpenAI-compatible setup
-        // is half-wired, and when we could not read our own stored secrets.
-        // every one of those means the user HAS brought a credential, so
-        // falling back would swap their model for a cheap one and swallow the
-        // message that says what to fix.
-        const funded =
-          runContext.trialFallback && missingKey instanceof NoUsableCredentialError
-            ? await resolveTrialFallback({
-                payload,
-                configuredModel: effectiveModel,
-                oidcCredentials,
-                repo: runContext.repo,
-                toolState,
-              })
-            : false;
-        if (!funded) throw missingKey;
-        // the run is now Router-served, and only opencode speaks that provider —
-        // the harness picked above was chosen for a credential that does not
-        // exist. re-resolving is not optional bookkeeping: leaving `agent` alone
-        // sends a proxy run to claude-code or codex, which then dies on the same
-        // missing key this branch just worked around.
-        agent = resolveAgent({
-          model: resolvedModel,
-          proxyModel: payload.proxyModel,
-          codexAgent: runContext.repoSettings.codexAgent || payload.codexArm === true,
-        });
-        toolState.agent = agent.name;
-      }
-    }
+    // API key".
+    validateAgentApiKey({
+      agent,
+      model: effectiveModel,
+      authorized: getAuthorizedModels(),
+      owner: runContext.repo.owner,
+      name: runContext.repo.name,
+    });
 
     await setupGit({
       gitToken: tokenRef.gitToken,
@@ -617,10 +386,7 @@ export async function main(): Promise<MainResult> {
     timer.checkpoint("lifecycleHooks::setup");
 
     const agentId = agent.name;
-    const modes = [
-      ...computeModes(agentId, runContext.repoSettings.signedCommits),
-      ...runContext.repoSettings.modes,
-    ];
+    const modes = [...computeModes(agentId), ...runContext.repoSettings.modes];
 
     const outputSchema = resolveOutputSchema();
 
@@ -641,26 +407,19 @@ export async function main(): Promise<MainResult> {
         return tokenRef.gitToken;
       },
       refreshGitToken: tokenRef.refreshGitToken,
-      readToken: tokenRef.readToken,
       ghToken: tokenRef.ghToken,
-      xrepo: payload.xrepo,
-      apiToken: runContext.apiToken,
       modes,
       postCheckoutScript: runContext.repoSettings.postCheckoutScript,
       prepushScript: runContext.repoSettings.prepushScript,
       prApproveEnabled: runContext.repoSettings.prApproveEnabled,
       reviewDrafts: runContext.repoSettings.reviewDrafts,
-      autoMergeEnabled: runContext.repoSettings.autoMergeEnabled,
       signedCommits: runContext.repoSettings.signedCommits,
-      repoIntelligence: runContext.repoSettings.repoIntelligence,
       modeInstructions: runContext.repoSettings.modeInstructions,
       toolState,
       runId: runInfo.runId,
       jobId: runInfo.jobId,
       mcpServerUrl: "",
       tmpdir,
-      oss: runContext.oss,
-      plan: runContext.plan,
       resolvedModel,
     };
     await using mcpHttpServer = await startMcpHttpServer(toolContext, { outputSchema });
@@ -671,97 +430,6 @@ export async function main(): Promise<MainResult> {
     // derive the subagent deny list from the same tool set the server just
     // registered, so the gate can never drift from the registered tools.
     const subagentDeniedTools = subagentDeniedToolNames(toolContext, outputSchema);
-
-    // seed the rolling repo-level learnings tmpfile for every run. the
-    // agent reads the file at startup (path is surfaced in the LEARNINGS
-    // section of the prompt) and may edit it during the post-run
-    // reflection turn. persistLearnings reads it back at end-of-run and
-    // PATCHes any changes to Repo.learnings, byte-trim equality against
-    // the seed gates the API call. always-seed (vs gated): learnings are
-    // universal — any run can produce them, and gating just hides the
-    // affordance.
-    //
-    // wrapped in best-effort try/catch: this block runs unconditionally,
-    // and an unwrapped filesystem failure (ENOSPC, EACCES, hostile sandbox)
-    // would unwind into the outer main() catch and flip an otherwise-
-    // successful run to "❌ Pullfrog failed" before the agent even starts.
-    // on failure toolState.learningsFilePath stays unset, and downstream
-    // consumers (`persistLearnings`, agent harnesses, `resolveInstructions`)
-    // all treat undefined as "no learnings affordance this run".
-    try {
-      const learningsPath = await seedLearningsFile({
-        tmpdir,
-        current: runContext.repoSettings.learnings,
-      });
-      toolState.learningsFilePath = learningsPath;
-      // file on disk is the verbatim DB body, so the seed used for
-      // change-detection is just `current ?? ""` (trimmed). persistLearnings
-      // byte-compares against the trimmed read-back to skip no-op PATCHes.
-      toolState.learningsSeed = (runContext.repoSettings.learnings ?? "").trim();
-      log.info(
-        `» learnings seeded at ${learningsPath} (existing=${runContext.repoSettings.learnings ? "yes" : "no"})`
-      );
-      const ctxForExit = toolContext;
-      onExitSignal(() => persistLearnings(ctxForExit));
-    } catch (err) {
-      log.warning(
-        `» learnings seed failed: ${err instanceof Error ? err.message : String(err)} — continuing without learnings file`
-      );
-    }
-
-    // on --xrepo runs, seed the org-level cross-repo learnings tmpfile too.
-    // same lifecycle as repo learnings (read at startup, agent-editable,
-    // persisted at end), but org-scoped and only present cross-repo.
-    if (payload.xrepo) {
-      try {
-        const xrepoPath = await seedXrepoLearningsFile({
-          tmpdir,
-          current: runContext.repoSettings.xrepoLearnings,
-        });
-        toolState.xrepoLearningsFilePath = xrepoPath;
-        toolState.xrepoLearningsSeed = (runContext.repoSettings.xrepoLearnings ?? "").trim();
-        log.info(
-          `» xrepo learnings seeded at ${xrepoPath} (existing=${runContext.repoSettings.xrepoLearnings ? "yes" : "no"})`
-        );
-        const ctxForExit = toolContext;
-        onExitSignal(() => persistXrepoLearnings(ctxForExit));
-      } catch (err) {
-        log.warning(
-          `» xrepo learnings seed failed: ${err instanceof Error ? err.message : String(err)} — continuing without xrepo learnings file`
-        );
-      }
-    }
-
-    // seed the rolling PR summary tmpfile when the dispatcher requested it.
-    // gated on event being a PR — issue/workflow_dispatch runs have no
-    // summarySnapshot to maintain. file path is exposed to the agent via
-    // the select_mode response addendum (action/mcp/selectMode.ts).
-    if (payload.generateSummary && payload.event.is_pr && payload.event.issue_number) {
-      const previousSnapshot = await fetchPreviousSnapshot(toolContext, payload.event.issue_number);
-      const filePath = await seedSummaryFile({ tmpdir, previousSnapshot });
-      toolState.summaryFilePath = filePath;
-      // capture the exact bytes the agent will see at startup. used by
-      // the post-run retry loop to detect the agent forgetting to edit
-      // the file (byte-identical to seed → nudge once via resume turn)
-      // and by persistSummary to skip the DB write when nothing changed.
-      try {
-        toolState.summarySeed = await readFile(filePath, "utf8");
-      } catch {
-        // intentionally empty — summarySeed stays undefined
-      }
-      log.info(
-        `» summary snapshot seeded at ${filePath} (previous=${previousSnapshot ? "yes" : "no"})`
-      );
-      // on SIGINT/SIGTERM we still want to persist whatever the agent has
-      // written so far. handler is best-effort: any failure inside is
-      // swallowed by Promise.allSettled in exitHandler.ts, and the
-      // summaryPersistAttempted guard prevents double-execution if the
-      // signal arrives after the normal path already persisted. capture a
-      // narrowed reference so the closure doesn't depend on the outer
-      // `toolContext` variable being defined later.
-      const ctxForExit = toolContext;
-      onExitSignal(() => persistSummary(ctxForExit));
-    }
 
     startInstallation(toolContext);
 
@@ -774,13 +442,7 @@ export async function main(): Promise<MainResult> {
       agentId,
       outputSchema,
       signedCommits: runContext.repoSettings.signedCommits,
-      repoIntelligence: runContext.repoSettings.repoIntelligence,
-      learningsFilePath: toolState.learningsFilePath ?? null,
-      learningsHeadings: runContext.repoSettings.learningsHeadings,
       setupHookFailure: describeSetupFailure(setupHook.failure),
-      xrepoBrief: runContext.repoSettings.xrepoBrief,
-      xrepoLearningsFilePath: toolState.xrepoLearningsFilePath ?? null,
-      xrepoLearningsHeadings: runContext.repoSettings.xrepoLearningsHeadings,
     });
     // the prompt and the tool registry are decided in different files off
     // overlapping conditions; this is what stops them disagreeing silently.
@@ -926,7 +588,6 @@ export async function main(): Promise<MainResult> {
       todoTracker,
       stopScript: runContext.repoSettings.stopScript,
       toolState,
-      apiToken: runContext.apiToken,
       onActivityTimeout: onInnerActivityTimeout,
       onTurnRecovered,
       onToolUse: (event) => {
@@ -1008,7 +669,6 @@ export async function main(): Promise<MainResult> {
       toolContext,
       silent: payload.event.silent ?? false,
     });
-    succeeded = outcome.success;
     return outcome;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "unknown error occurred";
@@ -1017,13 +677,12 @@ export async function main(): Promise<MainResult> {
     killTrackedChildren();
     log.error(errorMessage);
 
-    // classify (BillingError reclassification + hang detection + API-key auth
+    // classify (hang detection + API-key auth
     // detection) and render to {summary, comment} markdown bodies.
     const rendered = renderRunError({
       errorMessage,
       repo: runContext.repo,
       agentDiagnostic: toolState.agentDiagnostic,
-      routerActive: !!payload.proxyModel,
     });
     await writeRunErrorOutputs({ rendered, toolState });
 
@@ -1060,28 +719,6 @@ export async function main(): Promise<MainResult> {
       }
     }
 
-    // persist this start's aggregated token + cost usage and result; the server
-    // sums a run's starts onto the WorkflowRun row.
-    // this is the single shared cleanup path across every agent implementation:
-    // each agent harness returns a single AgentUsage from agent.run() that
-    // already aggregates its internal retries via mergeAgentUsage, and the
-    // success branch above pushes that entry into toolState.usageEntries.
-    // aggregateUsage sums across those entries (one per agent.run()).
-    //
-    // caveat: if the agent promise rejected (timeout or uncaught throw) the
-    // usage was never pushed, so nothing gets persisted for that run. runs
-    // that returned AgentResult with success=false still report their partial
-    // usage because the harness populates AgentUsage before returning.
-    if (toolContext) {
-      const patch = aggregateUsage(toolState.usageEntries);
-      // persist the resolved/effective model (what actually ran) so per-model
-      // cost analytics don't have to parse the audit-only payload.
-      if (toolState.model) patch.model = toolState.model;
-      if (toolState.agent) patch.agent = toolState.agent;
-      if (toolState.credential) patch.credential = toolState.credential;
-      patch.succeeded = succeeded;
-      await patchWorkflowRunFields(toolContext, patch);
-    }
     cleanupVertexCredentials(vertexCredentials);
   }
 }

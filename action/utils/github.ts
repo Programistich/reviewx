@@ -105,13 +105,6 @@ export type GitHubAppPermissions = {
 };
 
 type AcquireTokenOptions = {
-  repos?: string[] | undefined;
-  /**
-   * handle to the server-persisted cross-repo grant, required whenever `repos`
-   * names anything beyond the primary. the server bounds the request against
-   * the sets IT stored, so this cannot widen the token by itself.
-   */
-  xrepoGrant?: string | undefined;
   permissions?: GitHubAppPermissions;
   /**
    * stashed OIDC credentials for minting after restricted mode deletes
@@ -216,12 +209,6 @@ export const mintIdToken = yes.query({
 async function acquireTokenViaOIDC(opts?: AcquireTokenOptions): Promise<string> {
   const oidcToken = opts?.oidc ? await fetchIdTokenFromStash(opts.oidc) : await mintIdToken();
 
-  const repos = [...(opts?.repos ?? [])];
-  const targetRepo = process.env.GITHUB_REPOSITORY?.split("/")[1];
-  if (targetRepo) {
-    repos.push(targetRepo);
-  }
-  const reposParam = repos.length ? `?repos=${repos.join(",")}` : "";
 
   const timeoutMs = 30000;
   const controller = new AbortController();
@@ -229,12 +216,11 @@ async function acquireTokenViaOIDC(opts?: AcquireTokenOptions): Promise<string> 
 
   try {
     const tokenResponse = await apiFetch({
-      path: `/api/github/installation-token${reposParam}`,
+      path: "/api/github/installation-token",
       method: "POST",
       headers: {
         Authorization: `Bearer ${oidcToken}`,
         "Content-Type": "application/json",
-        ...(opts?.xrepoGrant ? { "x-pullfrog-xrepo-grant": opts.xrepoGrant } : {}),
       },
       body: opts?.permissions ? JSON.stringify({ permissions: opts.permissions }) : undefined,
       signal: controller.signal,

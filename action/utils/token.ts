@@ -1,15 +1,11 @@
 import assert from "node:assert/strict";
 import * as core from "@actions/core";
-import type { AuthorPermission, PushPermission, XrepoConfig } from "../external.ts";
+import type { AuthorPermission, PushPermission } from "../external.ts";
 import { log } from "./cli.ts";
 import { onExitSignal } from "./exitHandler.ts";
 import { acquireNewToken, type OidcCredentials } from "./github.ts";
 import { formatPermissions, mirrorRolePermissions } from "./roleMirror.ts";
 import { maskSecret } from "./secretCommands.ts";
-
-// re-export for `pullfrog gha token` subcommand
-export { acquireNewToken as acquireInstallationToken };
-export { revokeGitHubInstallationToken as revokeInstallationToken };
 
 // store MCP token in memory for getGitHubInstallationToken()
 let mcpTokenValue: string | undefined;
@@ -58,16 +54,11 @@ export type TokenRef = {
   // githubInstallationToken live getter. see #964.
   gitToken: string;
   mcpToken: string;
-  // contents:read token scoped to the cross-repo READ set (clone-for-reference
-  // of read-only secondaries). only minted on `--xrepo` runs; undefined
-  // otherwise. resolveRepoCtx routes read-tier secondaries to this token.
-  readToken?: string | undefined;
   // credential handed to the `gh` MCP tool, scoped to mirror the triggering
   // user's own repo role. undefined below the mirror threshold (read/none),
   // which is what withholds the tool entirely. see roleMirror.ts.
   ghToken?: string | undefined;
-  // re-mint the git-scoped token matching `stale` (the write gitToken or the
-  // read readToken) for push retries, when GitHub hands out a token its
+  // re-mint the git-scoped token matching `stale` for push retries, when GitHub hands out a token its
   // git-over-HTTPS edge never accepts. undefined on the external-GH_TOKEN path
   // (can't be re-minted). single-flight per token.
   refreshGitToken?: ((stale: string) => Promise<string>) | undefined;
@@ -79,16 +70,6 @@ type ResolveTokensParams = {
   // the triggering user's repo role, resolved server-side before dispatch. the
   // `gh` token's scope is derived from it; `undefined` withholds the token.
   authorPermission: AuthorPermission | undefined;
-  // cross-repo access sets (server-resolved). when present, gitToken + mcpToken
-  // are scoped to the WRITE set (∪ primary) and a readToken is minted over the
-  // READ set. absent → single-repo, primary-scoped tokens (unchanged).
-  xrepo?: XrepoConfig | undefined;
-  /**
-   * handle to the cross-repo grant the server persisted for this run. required
-   * alongside `xrepo`: the mint endpoint refuses a `repos` list without one,
-   * because the runner's list is attacker-controlled on a manual dispatch.
-   */
-  xrepoGrant?: string | undefined;
   /**
    * OIDC credentials stashed by main.ts before the restricted-mode env wipe —
    * the mid-run MCP token refresh mints from this snapshot (#891). null when
@@ -100,16 +81,11 @@ type ResolveTokensParams = {
 /**
  * resolve tokens for the action run.
  *
- * creates two separate tokens (three on cross-repo runs):
+ * creates two separate tokens:
  * - gitToken: contents permission based on `push` setting (assumed exfiltratable)
  *   - push: enabled → contents:write (can push)
  *   - push: disabled → contents:read (read-only)
  * - mcpToken: full installation token - used for GitHub API calls in MCP tools (not exfiltratable)
- * - readToken (xrepo only): contents:read over the read set, for cloning read-tier secondaries
- *
- * on cross-repo runs, gitToken + mcpToken are scoped to the WRITE set (always
- * incl. the primary), so a writable secondary can take PRs; read-only
- * secondaries route through readToken instead.
  *
  * security-conscious users can pass their own token via GH_TOKEN env var or inputs.token.
  */
@@ -129,8 +105,6 @@ export async function resolveTokens(params: ResolveTokensParams): Promise<TokenR
     return {
       gitToken: externalToken,
       mcpToken: externalToken,
-      // external token is whatever scope the user granted — reuse for reads too.
-      readToken: params.xrepo ? externalToken : undefined,
       // the scope is the user's to choose here, but the role threshold still
       // decides whether the agent gets a CLI credential at all.
       ghToken: mirrorRolePermissions(params.authorPermission) ? externalToken : undefined,
@@ -141,12 +115,6 @@ export async function resolveTokens(params: ResolveTokensParams): Promise<TokenR
     };
   }
 
-  // on cross-repo runs, scope the write-tier tokens to the WRITE set;
-  // `acquireTokenViaOIDC` (action/utils/github.ts) appends the primary repo
-  // client-side before the request, so this covers primary + writable
-  // secondaries. undefined → primary only (unchanged).
-  const writeRepos = params.xrepo?.write;
-
   // create git token based on push permission (assumed exfiltratable)
   // disabled = read-only, restricted/enabled = write (MCP tools enforce branch restrictions)
   // workflows permission is write-only in the API, so only requested when pushing is allowed
@@ -154,11 +122,7 @@ export async function resolveTokens(params: ResolveTokensParams): Promise<TokenR
     params.push === "disabled"
       ? { contents: "read" as const }
       : { contents: "write" as const, workflows: "write" as const };
-  const gitToken = await acquireNewToken({
-    repos: writeRepos,
-    xrepoGrant: params.xrepoGrant,
-    permissions: gitPermissions,
-  });
+  const gitToken = await acquireNewToken({ permissions: gitPermissions });
   maskSecret(gitToken);
   log.info(
     `» acquired git token (${Object.entries(gitPermissions)
@@ -181,11 +145,7 @@ export async function resolveTokens(params: ResolveTokensParams): Promise<TokenR
     // for commits pushed while a review was in flight; read 403s it.
     actions: "write",
   } as const;
-  const mcpToken = await acquireNewToken({
-    repos: writeRepos,
-    xrepoGrant: params.xrepoGrant,
-    permissions: mcpPermissions,
-  });
+  const mcpToken = await acquireNewToken({ permissions: mcpPermissions });
   maskSecret(mcpToken);
   log.info(
     `» acquired scoped MCP token (${Object.entries(mcpPermissions)
@@ -199,8 +159,7 @@ export async function resolveTokens(params: ResolveTokensParams): Promise<TokenR
   // print it, so its scope is the entire security boundary. passing NO `repos`
   // does not mean unscoped: `acquireTokenViaOIDC` always appends
   // `$GITHUB_REPOSITORY`, so the list is exactly `[this repo]` regardless of how
-  // much org-wide reach the triggerer has, and a leak cannot cross into the
-  // xrepo write set. see mirrorRolePermissions for why that stays correct.
+  // much org-wide reach the triggerer has. see mirrorRolePermissions.
   const ghPermissions = mirrorRolePermissions(params.authorPermission);
   let ghToken: string | undefined;
   if (ghPermissions) {
@@ -211,22 +170,9 @@ export async function resolveTokens(params: ResolveTokensParams): Promise<TokenR
     );
   }
 
-  // read-tier token for cloning read-only secondaries (cross-repo only).
-  let readToken: string | undefined;
-  if (params.xrepo) {
-    readToken = await acquireNewToken({
-      repos: params.xrepo.read,
-      xrepoGrant: params.xrepoGrant,
-      permissions: { contents: "read" },
-    });
-    maskSecret(readToken);
-    log.info(`» acquired cross-repo read token (contents:read, ${params.xrepo.read.length} repos)`);
-  }
-
   mcpTokenValue = mcpToken;
   let currentMcpToken = mcpToken;
   let currentGitToken = gitToken;
-  let currentReadToken = readToken;
 
   // GitHub can invalidate an installation token before expiry (see #891).
   // single-flight: concurrent 401s share one mint, and a caller whose token
@@ -239,12 +185,7 @@ export async function resolveTokens(params: ResolveTokensParams): Promise<TokenR
     if (stale !== currentMcpToken) {
       return Promise.resolve(currentMcpToken);
     }
-    // keep the original scope: on xrepo runs the MCP token covers the WRITE
-    // set, and a refresh that dropped `repos` would silently re-scope it to
-    // the primary only (secondaries would start 403ing mid-run).
     refreshPromise ??= acquireNewToken({
-      repos: writeRepos,
-      xrepoGrant: params.xrepoGrant,
       permissions: mcpPermissions,
       oidc: params.oidc ?? undefined,
     })
@@ -264,17 +205,13 @@ export async function resolveTokens(params: ResolveTokensParams): Promise<TokenR
   // GitHub intermittently mints a git token its git-over-HTTPS edge never
   // accepts — it 401s as "Invalid username or token" for the token's whole
   // life, so retrying the same token never recovers. re-minting draws a fresh
-  // token instance, which is the actual cure. dispatches by which current
-  // git-scoped token `stale` matches (write gitToken or read readToken),
-  // single-flight per token, and revokes the superseded one.
+  // token instance, which is the actual cure. single-flight, and revokes the
+  // superseded one.
   let gitRefreshPromise: Promise<string> | undefined;
-  let readRefreshPromise: Promise<string> | undefined;
   const refreshGitToken = (stale: string): Promise<string> => {
     assert(mcpTokenValue, "tokens already disposed");
     if (stale === currentGitToken) {
       gitRefreshPromise ??= acquireNewToken({
-        repos: writeRepos,
-        xrepoGrant: params.xrepoGrant,
         permissions: gitPermissions,
         oidc: params.oidc ?? undefined,
       })
@@ -290,31 +227,8 @@ export async function resolveTokens(params: ResolveTokensParams): Promise<TokenR
         });
       return gitRefreshPromise;
     }
-    if (currentReadToken && stale === currentReadToken) {
-      const read = currentReadToken;
-      readRefreshPromise ??= acquireNewToken({
-        repos: params.xrepo?.read,
-        xrepoGrant: params.xrepoGrant,
-        permissions: { contents: "read" },
-        oidc: params.oidc ?? undefined,
-      })
-        .then((fresh) => {
-          maskSecret(fresh);
-          void revokeGitHubInstallationToken(read);
-          currentReadToken = fresh;
-          log.warning("» GitHub rejected the read token; re-acquired a fresh read token");
-          return fresh;
-        })
-        .finally(() => {
-          readRefreshPromise = undefined;
-        });
-      return readRefreshPromise;
-    }
-    // `stale` was already replaced by a parallel refresh — hand back the
-    // fresh token of whichever tier it belonged to.
-    return Promise.resolve(
-      stale === readToken ? (currentReadToken ?? currentGitToken) : currentGitToken
-    );
+    // `stale` was already replaced by a parallel refresh — hand back the fresh one.
+    return Promise.resolve(currentGitToken);
   };
 
   let disposingRef: PromiseWithResolvers<void> | undefined;
@@ -333,7 +247,6 @@ export async function resolveTokens(params: ResolveTokensParams): Promise<TokenR
       await Promise.all([
         revokeGitHubInstallationToken(currentGitToken),
         revokeGitHubInstallationToken(currentMcpToken),
-        ...(currentReadToken ? [revokeGitHubInstallationToken(currentReadToken)] : []),
         // revoking this one is what bounds a `gh` leak to the run's lifetime
         ...(ghToken ? [revokeGitHubInstallationToken(ghToken)] : []),
       ]);
@@ -351,7 +264,6 @@ export async function resolveTokens(params: ResolveTokensParams): Promise<TokenR
       return currentGitToken;
     },
     mcpToken,
-    readToken,
     ghToken,
     refreshGitToken,
     [Symbol.asyncDispose]: dispose,

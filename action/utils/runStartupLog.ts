@@ -21,7 +21,6 @@ function resolveModelForLog(ctx: {
 }): string {
   const envModel = process.env.PULLFROG_MODEL?.trim();
   if (envModel) return `${envModel} (override via PULLFROG_MODEL)`;
-  if (ctx.payload.proxyModel) return `${ctx.payload.proxyModel} (proxy)`;
   if (ctx.resolvedModel && ctx.payload.model && ctx.payload.model !== ctx.resolvedModel) {
     return `${ctx.resolvedModel} (resolved from ${ctx.payload.model})`;
   }
@@ -43,7 +42,7 @@ function resolveEffortForLog(ctx: {
   const effort = resolveRunEffort(ctx);
   // this block prints before the agent starts, so an auto-select run has no
   // model yet — the harness prints the real rung once it picks one.
-  if (!ctx.resolvedModel && !ctx.payload.proxyModel) return "pending — model not chosen yet";
+  if (!ctx.resolvedModel) return "pending — model not chosen yet";
   if (!effort.alias) return "not applied — model not recognized";
   if (!effort.rung) return "n/a (model has no effort control)";
   return effort.configured ? effort.rung : `${effort.rung} (default)`;
@@ -75,12 +74,6 @@ export function logRunStartup(ctx: {
   log.info(
     `» effort:  ${resolveEffortForLog({ payload: ctx.payload, resolvedModel: ctx.resolvedModel })}`
   );
-  const routing = ctx.payload.routing;
-  if (routing) {
-    log.info(
-      `» routed:  ${routing.tier} (${routing.source}: stakes ${routing.stakes}, workload ${routing.workload}) — ${routing.rationale}`
-    );
-  }
   log.info(
     `» agent:   ${resolveAgentForLog({ agentName: ctx.agentName, resolvedModel: ctx.resolvedModel })}`
   );

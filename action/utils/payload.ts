@@ -37,17 +37,6 @@ export const JsonPayload = type({
   // payload from an older server build still parses against a newer action.
   "type?": "string | undefined",
   "model?": "string | undefined",
-  "modelExplicit?": "boolean | undefined",
-  // optional so a payload from a pre-router server build still parses against a
-  // newer action across a rolling deploy. a new `source` value is released in the
-  // action before the server emits it: the published action rejects the payload.
-  "routing?": type({
-    tier: "'minimal' | 'light' | 'standard' | 'deep'",
-    stakes: "number",
-    workload: "number",
-    source: "'jev' | 'scorer' | 'heuristic' | 'fixed'",
-    rationale: "string",
-  }).or("undefined"),
   "effort?": "number | string | undefined",
   "debug?": "boolean | undefined",
   prompt: "string",
@@ -57,17 +46,6 @@ export const JsonPayload = type({
   "eventInstructions?": "string",
   "previousRunsNote?": "string",
   "event?": "object",
-  "xrepo?": type({
-    mode: "'all' | 'explicit'",
-    read: "string[]",
-    write: "string[]",
-    // optional so a payload from an older server build (pre-`unavailable`)
-    // still parses against a newer action across a rolling deploy.
-    "unavailable?": "string[]",
-  }).or("undefined"),
-  // opaque handle to the server-persisted cross-repo grant. optional so a
-  // payload from an older server build still parses against a newer action.
-  "xrepoGrant?": "string | undefined",
   "timeout?": "string | undefined",
   "progressComment?": type({
     id: "string",
@@ -76,10 +54,6 @@ export const JsonPayload = type({
   // optional so a payload from an older server build (pre-`checkRun`) still parses
   // against a newer action across a rolling deploy.
   "checkRun?": type({ id: "string" }).or("undefined"),
-  "generateSummary?": "boolean | undefined",
-  // optional so a payload from a pre-canary server build still parses against a
-  // newer action across a rolling deploy.
-  "codexArm?": "boolean | undefined",
 });
 
 // permission levels that indicate collaborator status (have push access)
@@ -362,10 +336,6 @@ export function resolvePayload(
     "~pullfrog": true as const,
     version: jsonPayload?.version ?? packageJson.version,
     model,
-    // explicit only when the model came from a per-run override flag (carried on
-    // the JSON payload). a GHA `model` input or the repo default is not explicit.
-    modelExplicit: jsonPayload?.modelExplicit ?? false,
-    routing: jsonPayload?.routing,
     effort,
     debug: debug || undefined,
     prompt,
@@ -373,18 +343,14 @@ export function resolvePayload(
       jsonPayload?.triggerer ??
       // it's not a common use case but GITHUB_ACTOR can be a user when the workflow is manually triggered by a user through GitHub Actions UI
       (!isPullfrog(process.env.GITHUB_ACTOR) ? process.env.GITHUB_ACTOR : undefined),
-    baseInstructions: jsonPayload?.baseInstructions,
+    baseInstructions: jsonPayload?.baseInstructions ?? repoSettings.baseInstructions ?? undefined,
     eventInstructions: jsonPayload?.eventInstructions,
     previousRunsNote: jsonPayload?.previousRunsNote,
     event,
-    xrepo: jsonPayload?.xrepo,
-    xrepoGrant: jsonPayload?.xrepoGrant,
     timeout: inputs.timeout ?? jsonPayload?.timeout,
     cwd: resolveCwd(inputs.cwd),
     progressComment: jsonPayload?.progressComment,
     checkRun: jsonPayload?.checkRun,
-    generateSummary: jsonPayload?.generateSummary,
-    codexArm: jsonPayload?.codexArm,
 
     // permissions: inputs > repoSettings > fallbacks
     push: inputs.push ?? repoSettings.push ?? "restricted",
@@ -411,9 +377,6 @@ export function resolvePayload(
       inputs.progress_comments === undefined
         ? repoSettings.progressComments
         : inputs.progress_comments === "enabled",
-
-    // set by proxy logic in main.ts when routing through OpenRouter
-    proxyModel: undefined as string | undefined,
   };
 }
 

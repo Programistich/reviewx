@@ -1,16 +1,9 @@
 // changes to prompt assembly should be reflected in wiki/prompt.md
 import { execSync } from "node:child_process";
 import { encode as toonEncode } from "@toon-format/toon";
-import {
-  type AgentId,
-  formatMcpToolRef,
-  hasSimilarIssues,
-  type PayloadEvent,
-  pullfrogMcpName,
-} from "../external.ts";
+import { type AgentId, formatMcpToolRef, type PayloadEvent, pullfrogMcpName } from "../external.ts";
 import type { Mode } from "../modes.ts";
 import type { ResolvedPayload } from "./payload.ts";
-import type { LearningsHeading } from "./runContext.ts";
 import type { RunContextData } from "./runContextData.ts";
 
 interface InstructionsContext {
@@ -22,29 +15,10 @@ interface InstructionsContext {
   /** commits are created via the GitHub API (commit_changes tool) so GitHub
    * signs them — flips the Git instructions to the signed-commits flow. */
   signedCommits: boolean;
-  /** the account is allowlisted for issue indexing, so `find_similar_issues`
-   * is registered on issue runs — adds the duplicate-check instruction. */
-  repoIntelligence: boolean;
-  /** absolute path to the seeded learnings tmpfile, or null when the file
-   * couldn't be seeded for some reason. main.ts always seeds, so in
-   * practice this is always set; the null case keeps the type honest. */
-  learningsFilePath: string | null;
-  /** server-parsed TOC for the body of the learnings tmpfile. rendered
-   * inline into the LEARNINGS prompt section so the agent can `read_file`
-   * targeted line ranges instead of pulling the whole file into context. */
-  learningsHeadings: LearningsHeading[];
   /** agent-facing description of a setup lifecycle hook failure (see
    * `describeSetupFailure`), rendered as a SETUP HOOK FAILED banner. empty
    * string when the hook succeeded, was skipped, or wasn't configured. */
   setupHookFailure: string;
-  /** operator-authored cross-repo brief (`Account.xrepoBrief`), rendered in
-   * the CROSS-REPO section on --xrepo runs. null/empty otherwise. */
-  xrepoBrief: string | null;
-  /** absolute path to the seeded cross-repo learnings tmpfile (--xrepo runs
-   * only), or null. */
-  xrepoLearningsFilePath: string | null;
-  /** server-parsed TOC for the cross-repo learnings body. */
-  xrepoLearningsHeadings: LearningsHeading[];
 }
 
 interface PromptContext extends InstructionsContext {
@@ -212,45 +186,6 @@ Org- and repo-level instructions that apply to every run. Follow them unless the
 ${standing}`;
 }
 
-// cross-repo capability + scope, rendered only on --xrepo runs. lists every
-// repo in the access set with its tier, the operator brief, and the org-level
-// learnings TOC. omitted entirely on single-repo runs.
-function buildXrepoSection(ctx: PromptContext): string {
-  const xrepo = ctx.payload.xrepo;
-  if (!xrepo) return "";
-  const owner = ctx.repo.owner;
-  // GitHub repo names are case-insensitive and other xrepo paths fold casing,
-  // so compare folded to avoid mislabeling a mis-cased primary as write/read.
-  const eqName = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
-  const tier = (name: string): string =>
-    eqName(name, ctx.repo.name)
-      ? "primary"
-      : xrepo.write.some((w) => eqName(w, name))
-        ? "write"
-        : "read";
-  const repoLines = xrepo.read.map((name) => `- \`${owner}/${name}\` (${tier(name)})`).join("\n");
-
-  const brief = ctx.xrepoBrief?.trim() ?? "";
-  const briefBlock = brief ? `\n\nOperator notes on how these repos relate:\n\n${brief}` : "";
-
-  let learningsBlock = "";
-  if (ctx.xrepoLearningsFilePath) {
-    const toc =
-      ctx.xrepoLearningsHeadings.length === 0
-        ? "(empty or flat — read the whole file if it has content; structure it with headings during the post-run reflection turn so future runs can target ranges.)"
-        : `Read targeted line ranges — do NOT slurp the whole file:\n\n${renderLearningsToc(ctx.xrepoLearningsHeadings)}`;
-    learningsBlock = `\n\nThe cross-repo learnings file at \`${ctx.xrepoLearningsFilePath}\` holds durable org-level structural knowledge (how repos depend on one another, where shared code lives, build/test entrypoints per repo) maintained across runs. ${toc}`;
-  }
-
-  return `************* CROSS-REPO *************
-
-This run has cross-repo access (\`--xrepo\`). Call \`list_repos\` to see what's available and \`checkout_repo\` to clone a secondary into a working tree (edit its files by absolute path). Repos marked \`read\` are reference-only — no push or PR; \`write\` repos accept branches and PRs. Pass \`repo: "<name>"\` to the \`git\`, \`git_fetch\`, \`push_branch\`, and \`create_pull_request\` tools to act inside a secondary's checkout.
-
-Repos in scope:
-${repoLines}${briefBlock}${learningsBlock}`;
-}
-
-// render the SETUP HOOK FAILED banner; omitted unless the hook ran and failed.
 function buildSetupFailureSection(failureDescription: string): string {
   if (!failureDescription) return "";
   return `************* SETUP HOOK FAILED *************
@@ -368,15 +303,6 @@ Rules:
 ### GitHub
 
 Use MCP tools from ${pullfrogMcpName} for all GitHub operations. Never use the \`gh\` CLI — it is not authenticated and will fail. The MCP tools handle authentication and enforce permissions.
-${
-  hasSimilarIssues({ repoIntelligence: ctx.repoIntelligence, event: ctx.payload.event })
-    ? `
-#### Duplicate detection (enabled for this repository)
-
-Call \`${t("find_similar_issues")}\` for #${ctx.payload.event.issue_number} before planning. If it duplicates an existing issue, link that instead of producing a plan; never close or label on similarity alone.
-`
-    : ""
-}
 
 ${getShellInstructions(ctx.payload.shell, t)}
 
@@ -459,76 +385,26 @@ export interface ResolvedInstructions {
   runtime: string;
 }
 
-/** render the heading list as an indented bullet TOC. ranges shown in
- * parentheses (`(L3-L18)`); the start line is always the heading line
- * itself, so reading the listed range gives the agent the heading +
- * body together. shallowest heading depth in the body sits at the root
- * column; deeper levels indent by `(depth - rootDepth) * 2` spaces. */
-export function renderLearningsToc(headings: LearningsHeading[]): string {
-  if (headings.length === 0) return "";
-  const rootDepth = Math.min(...headings.map((h) => h.depth));
-  return headings
-    .map((h) => {
-      const indent = " ".repeat((h.depth - rootDepth) * 2);
-      return `${indent}- ${h.title} (L${h.startLine}-L${h.endLine})`;
-    })
-    .join("\n");
-}
-
-/** assemble the LEARNINGS prompt section: file path + intro + either
- * the rendered heading TOC (when the body has structure) or a no-headings
- * affordance pointing the agent at the reflection turn for restructuring.
- * empty string when the seed step failed and there's no path to surface. */
-export function buildLearningsSection(ctx: {
-  filePath: string | null;
-  headings: LearningsHeading[];
-}): string {
-  if (!ctx.filePath) return "";
-  // intro is neutral about whether content exists so an empty fresh-repo
-  // file doesn't open with "accumulated by previous agent runs" (false).
-  const intro = `The repo-level learnings file at \`${ctx.filePath}\` holds durable context (test commands, conventions, gotchas, architecture notes) maintained across runs.`;
-  const tocBody =
-    ctx.headings.length === 0
-      ? "(no headings yet — the file is empty or contains a flat list. read the whole file if it has content. during the post-run reflection turn, structure it with `## ` / `### ` headings so future runs can read targeted ranges.)"
-      : `Read targeted line ranges via your native file tool — do NOT slurp the whole file. Each range starts at the section heading line, so reading the range gives you heading + body together. The ranges below are a run-start snapshot: any edit shifts the line numbers of every later section, so re-read the TOC range you need before relying on it.\n\n${renderLearningsToc(ctx.headings)}`;
-  return `************* LEARNINGS *************\n\n${intro}\n\n${tocBody}`;
-}
-
 function assembleFullPrompt(ctx: {
   toc: string;
   task: string;
   standing: string;
-  xrepo: string;
   setupFailure: string;
   procedure: string;
   eventContext: string;
   system: string;
-  learningsFilePath: string | null;
-  learningsHeadings: LearningsHeading[];
   runtime: string;
 }): string {
-  // server-parsed TOC is rendered inline so the agent can target line
-  // ranges via its native file tool. the file body itself is never
-  // inlined — that would re-inflate context every run and clutter CI
-  // logs. post-run reflection (action/agents/postRun.ts) is where
-  // editing is encouraged.
-  const learningsSection = buildLearningsSection({
-    filePath: ctx.learningsFilePath,
-    headings: ctx.learningsHeadings,
-  });
-
   const runtimeSection = `************* RUNTIME *************\n\n${ctx.runtime}`;
 
   const rawFull = [
     ctx.toc,
     ctx.task,
     ctx.standing,
-    ctx.xrepo,
     ctx.setupFailure,
     ctx.procedure,
     ctx.eventContext,
     ctx.system,
-    learningsSection,
     runtimeSection,
   ]
     .filter(Boolean)
@@ -542,7 +418,6 @@ export function resolveInstructions(ctx: InstructionsContext): ResolvedInstructi
 
   const task = buildTaskSection(pctx);
   const standing = buildStandingSection(pctx);
-  const xrepo = buildXrepoSection(pctx);
   const setupFailure = buildSetupFailureSection(pctx.setupHookFailure);
   const procedure = buildProcedure(pctx);
   const eventContext = buildEventContext(pctx);
@@ -556,11 +431,6 @@ export function resolveInstructions(ctx: InstructionsContext): ResolvedInstructi
       label: "STANDING INSTRUCTIONS",
       description: "org/repo defaults applied to every run",
     });
-  if (xrepo)
-    tocEntries.push({
-      label: "CROSS-REPO",
-      description: "cross-repo access set, brief, and learnings",
-    });
   if (setupFailure)
     tocEntries.push({
       label: "SETUP HOOK FAILED",
@@ -570,11 +440,6 @@ export function resolveInstructions(ctx: InstructionsContext): ResolvedInstructi
   if (eventContext)
     tocEntries.push({ label: "EVENT CONTEXT", description: "related PR/issue data" });
   tocEntries.push({ label: "SYSTEM", description: "persona, security, tools, workflow rules" });
-  if (pctx.learningsFilePath)
-    tocEntries.push({
-      label: "LEARNINGS",
-      description: "repo-specific knowledge file path + heading TOC",
-    });
   tocEntries.push({ label: "RUNTIME", description: "environment metadata" });
 
   const toc = buildToc(tocEntries);
@@ -583,13 +448,10 @@ export function resolveInstructions(ctx: InstructionsContext): ResolvedInstructi
     toc,
     task,
     standing,
-    xrepo,
     setupFailure,
     procedure,
     eventContext,
     system,
-    learningsFilePath: pctx.learningsFilePath,
-    learningsHeadings: pctx.learningsHeadings,
     runtime: pctx.runtime,
   });
 

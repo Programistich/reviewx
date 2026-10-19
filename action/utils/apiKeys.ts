@@ -19,12 +19,10 @@ import {
   resolveDisplayAlias,
   VERTEX_MODEL_ID_ENV,
 } from "../models.ts";
-import { getApiUrl } from "./apiUrl.ts";
 import { PULLFROG_DATA_DIR, unhostedSubscriptions } from "./codexHome.ts";
 import { getModelsFailure } from "./openCodeModels.ts";
+import { REVIEWX_REPO_URL } from "./footer.ts";
 import { PROVIDER_DASHBOARDS } from "./providerDashboards.ts";
-import type { CredentialCandidate } from "./subscriptionCredentials.ts";
-import type { ProbeVerdict } from "./subscriptionProbe.ts";
 import {
   GOOGLE_CLOUD_PROJECT_ENV,
   readProjectIdFromVertexServiceAccountJson,
@@ -71,22 +69,6 @@ export function isByokSetupError(text: string): boolean {
 }
 
 /**
- * marker for the distinct "run-context couldn't hand over your stored secrets"
- * body. surfaced verbatim by `runErrorRenderer` (same contract as
- * `MODEL_ACCESS_MARKER`) because blaming the user for a transient fetch failure
- * on our side is the wrong CTA — their key is configured and still stored.
- */
-export const SECRETS_UNAVAILABLE_MARKER = "couldn't load your Pullfrog secrets";
-
-/**
- * marker for the "your Router wallet is empty AND you have no provider key"
- * body. its own marker rather than the missing-key one because
- * `formatApiKeyErrorSummary` rebuilds any body carrying `MISSING_KEY_MARKER`
- * that doesn't start with it, which would silently discard this copy.
- */
-export const ROUTER_UNFUNDED_MARKER = "your Pullfrog Router balance is empty";
-
-/**
  * marker for a credential the provider explicitly REJECTED before the agent
  * started. needs a verbatim guard for the same reason as its three siblings,
  * and more sharply: the body quotes the provider's own wording, which is
@@ -103,92 +85,15 @@ export const ROUTER_UNFUNDED_MARKER = "your Pullfrog Router balance is empty";
 export const CREDENTIAL_REJECTED_MARKER = "was rejected by its provider";
 
 /**
- * marker for the credential pool's refusal: every configured credential for the
- * model was rejected or exhausted. verbatim for the same reason as
- * `CREDENTIAL_REJECTED_MARKER` — each bullet quotes the probe's verdict.
- */
-export const CREDENTIAL_POOL_REFUSED_MARKER = "No configured credential can serve this run";
-
-/**
- * Three ways to arrive at "the runner has no key", each with a different CTA:
- * we couldn't read the key you stored, your Router wallet ran dry and you have
- * no key of your own, or you genuinely have no key. Every throw site picks by
- * these flags.
- */
-/**
  * Nothing in the environment can pay for this run — as distinct from a
  * credential that IS configured but incompletely (the Bedrock/Vertex/Azure/
- * OpenAI-compatible setup validators), an agent that could not start
- * (`getModelsFailure`), or Pullfrog failing to hand its own secrets over.
- *
- * The trial fallback keys on this class, and that is the whole reason it
- * exists: every other failure in `validateAgentApiKey` means the user HAS
- * brought a key, so falling back would swap their model for a cheap one and
- * swallow the message telling them what to fix.
+ * OpenAI-compatible setup validators) or an agent that could not start
+ * (`getModelsFailure`).
  */
 export class NoUsableCredentialError extends Error {}
 
-/**
- * The three ways a run reaches the agent with nothing to authenticate with.
- * Only two of them are the user's to fix, and only those two are a
- * `NoUsableCredentialError`: when `secretsUnavailable` is set we could not
- * READ their Pullfrog-stored credentials, so we do not know whether they have
- * one — and guessing costs them a downgraded run to cover our own outage.
- */
-function throwKeyError(params: {
-  owner: string;
-  name: string;
-  model?: string | undefined;
-  secretsUnavailable?: boolean | undefined;
-  routerUnfunded?: boolean | undefined;
-}): never {
-  if (params.secretsUnavailable) throw new Error(buildSecretsUnavailableError(params));
-  if (params.routerUnfunded) throw new NoUsableCredentialError(buildRouterUnfundedError(params));
+function throwKeyError(params: { owner: string; name: string; model?: string | undefined }): never {
   throw new NoUsableCredentialError(buildMissingApiKeyError(params));
-}
-
-/**
- * The account is on the Router, its wallet hit zero, and run-context therefore
- * declined the mint — so the run fell through to BYOK and found nothing.
- * `router_requires_card` (the 402 with this copy) is only reachable on the one
- * run whose balance crosses zero; every run after it lands here, and before
- * this body they were all told to go add an `OPENAI_API_KEY`. Leads with the
- * funding remedy because that is the one that matches how the account is
- * actually configured.
- */
-function buildRouterUnfundedError(params: {
-  owner: string;
-  name: string;
-  model?: string | undefined;
-}): string {
-  const billingUrl = `${getApiUrl()}/console/${params.owner}#billing`;
-  const settingsUrl = `${getApiUrl()}/console/${params.owner}/${params.name}`;
-  const modelClause = params.model ? ` \`${params.model}\` never ran.` : " the agent never ran.";
-
-  return [
-    `**${ROUTER_UNFUNDED_MARKER}**, and this repo has no provider key to fall back on, so${modelClause}`,
-    "",
-    "**To fix, any one of:** add a payment method or top up your Router balance · add a provider API key (GitHub Actions secret or Pullfrog secret) · switch this repo to a free model.",
-    "",
-    `[Top up Router →](${billingUrl}) · [Model settings →](${settingsUrl}) · [Setup docs →](https://docs.pullfrog.com/keys) · [Ask in Discord →](https://discord.gg/8y96raFg8e)`,
-  ].join("\n");
-}
-
-function buildSecretsUnavailableError(params: {
-  owner: string;
-  name: string;
-  model?: string | undefined;
-}): string {
-  const settingsUrl = `${getApiUrl()}/console/${params.owner}/${params.name}`;
-  const modelClause = params.model ? ` needed for \`${params.model}\`` : "";
-
-  return [
-    `**Pullfrog ${SECRETS_UNAVAILABLE_MARKER}${modelClause} on this run.** The key is still stored — the runner just couldn't fetch it, so this is a transient failure on our side, not a missing key.`,
-    "",
-    "**To fix:** re-run the job. If it keeps happening, tell us in Discord.",
-    "",
-    `[Model settings →](${settingsUrl}) · [Setup docs →](https://docs.pullfrog.com/keys) · [Ask in Discord →](https://discord.gg/8y96raFg8e)`,
-  ].join("\n");
 }
 
 /**
@@ -210,7 +115,6 @@ function buildMissingApiKeyError(params: {
   model?: string | undefined;
 }): string {
   const githubSecretsUrl = `https://github.com/${params.owner}/${params.name}/settings/secrets/actions`;
-  const settingsUrl = `${getApiUrl()}/console/${params.owner}/${params.name}`;
 
   const envVars = params.model?.includes("/") ? getModelEnvVars(params.model) : [];
   const [primary, ...alternates] = envVars;
@@ -220,21 +124,21 @@ function buildMissingApiKeyError(params: {
 
   const lead = envVarList
     ? `**${MISSING_KEY_MARKER}** — this run used \`${params.model}\`, which needs ${envVarList}, but the runner has no key for it.`
-    : `**${MISSING_KEY_MARKER}** — Pullfrog needs at least one LLM provider API key (e.g. \`ANTHROPIC_API_KEY\`, \`OPENAI_API_KEY\`, \`GEMINI_API_KEY\`) configured as a GitHub Actions secret.`;
+    : `**${MISSING_KEY_MARKER}** — ReviewX needs at least one LLM provider API key (e.g. \`ANTHROPIC_API_KEY\`, \`OPENAI_API_KEY\`, \`GEMINI_API_KEY\`) configured as a GitHub Actions secret.`;
 
   const unhosted = params.model?.includes("/")
     ? getModelManagedCredentials(params.model).find((name) => unhostedSubscriptions.has(name))
     : undefined;
   const fix = unhosted
-    ? `**To fix:** your ${SUBSCRIPTION_CREDENTIALS[unhosted]?.label} is stored, but this runner has no passwordless \`sudo\`, which Pullfrog needs to keep it in \`${PULLFROG_DATA_DIR}\`, out of the agent's reach. Allow passwordless \`sudo\` for the runner user, run on a GitHub-hosted runner, or add an API key as a GitHub Actions secret or a Pullfrog secret.`
-    : "**To fix:** add the key as a GitHub Actions secret (referenced from your workflow's `env:` block) or as a Pullfrog secret in the console — or switch this repo to a different model (free models need no key).";
+    ? `**To fix:** your ${SUBSCRIPTION_CREDENTIALS[unhosted]?.label} is configured, but this runner has no passwordless \`sudo\`, which ReviewX needs to keep it in \`${PULLFROG_DATA_DIR}\`, out of the agent's reach. Allow passwordless \`sudo\` for the runner user, run on a GitHub-hosted runner, or add an API key as a GitHub Actions secret.`
+    : "**To fix:** add the key as a GitHub Actions secret and reference it from your workflow's `env:` block — or set the `model` input to a different model (free models need no key).";
 
   return [
     lead,
     "",
     fix,
     "",
-    `[Open repo secrets →](${githubSecretsUrl}) · [Configure model →](${settingsUrl}) · [Setup docs →](https://docs.pullfrog.com/keys) · [Ask in Discord →](https://discord.gg/8y96raFg8e)`,
+    `[Open repo secrets →](${githubSecretsUrl}) · [Setup docs →](${REVIEWX_REPO_URL}#model-keys)`,
   ].join("\n");
 }
 
@@ -255,7 +159,7 @@ add the missing secret(s) to your GitHub repository at ${githubSecretsUrl}, then
 
 \`AWS_BEARER_TOKEN_BEDROCK\` may be substituted with \`AWS_ACCESS_KEY_ID\` + \`AWS_SECRET_ACCESS_KEY\` (and optional \`AWS_SESSION_TOKEN\`) if you prefer access keys.
 
-for full setup instructions, see https://docs.pullfrog.com/bedrock`;
+for full setup instructions, see ${REVIEWX_REPO_URL}#bedrock`;
 }
 
 function buildVertexSetupError(params: { owner: string; name: string; missing: string[] }): string {
@@ -270,7 +174,7 @@ add the missing secret(s) to your GitHub repository at ${githubSecretsUrl}, then
   ${VERTEX_LOCATION_ENV}: global
   ${VERTEX_MODEL_ID_ENV}: <vertex-model-id>
 
-for full setup instructions, see https://docs.pullfrog.com/vertex`;
+for full setup instructions, see ${REVIEWX_REPO_URL}#vertex`;
 }
 
 function buildOpenAICompatibleSetupError(params: {
@@ -295,7 +199,7 @@ discover them — your endpoint owns the model catalog — and without them comp
 capped at 32000 tokens (rejected outright by models with a smaller cap) and
 auto-compaction is disabled, so long runs grow until your endpoint refuses them.
 
-for full setup instructions, see https://docs.pullfrog.com/openai-compatible`;
+for full setup instructions, see ${REVIEWX_REPO_URL}#openai-compatible`;
 }
 
 function buildAzureSetupError(params: { owner: string; name: string; missing: string[] }): string {
@@ -320,7 +224,7 @@ discover them — a deployment name carries no catalog metadata — and without 
 are capped at 32000 tokens (rejected outright by models with a smaller cap) and auto-compaction
 is disabled, so long runs grow until Azure refuses them.
 
-for full setup instructions, see https://docs.pullfrog.com/azure`;
+for full setup instructions, see ${REVIEWX_REPO_URL}#azure`;
 }
 
 function hasEnvVar(name: string): boolean {
@@ -461,10 +365,6 @@ export function validateAgentApiKey(params: {
   authorized: Set<string>;
   owner: string;
   name: string;
-  /** run-context couldn't hand over Pullfrog-stored secrets, so a missing key
-   * says nothing about what the user actually configured. */
-  secretsUnavailable?: boolean | undefined;
-  routerUnfunded?: boolean | undefined;
 }): void {
   if (params.model) {
     const alias = resolveDisplayAlias(params.model);
@@ -542,8 +442,6 @@ export function validateAgentApiKey(params: {
         owner: params.owner,
         name: params.name,
         model: params.model,
-        secretsUnavailable: params.secretsUnavailable,
-        routerUnfunded: params.routerUnfunded,
       });
     }
 
@@ -553,8 +451,6 @@ export function validateAgentApiKey(params: {
       owner: params.owner,
       name: params.name,
       model: params.model,
-      secretsUnavailable: params.secretsUnavailable,
-      routerUnfunded: params.routerUnfunded,
     });
   }
 
@@ -576,16 +472,12 @@ export function validateAgentApiKey(params: {
     throwKeyError({
       owner: params.owner,
       name: params.name,
-      secretsUnavailable: params.secretsUnavailable,
-      routerUnfunded: params.routerUnfunded,
     });
   }
   if (hasSingleProviderAuth(params.agent.name)) return;
   throwKeyError({
     owner: params.owner,
     name: params.name,
-    secretsUnavailable: params.secretsUnavailable,
-    routerUnfunded: params.routerUnfunded,
   });
 }
 
@@ -750,18 +642,18 @@ export function isClaudeSessionLimitError(text: string): boolean {
 const SUBSCRIPTION_CREDENTIALS: Record<string, { label: string; command: string; docs: string }> = {
   CLAUDE_CODE_OAUTH_TOKEN: {
     label: "Claude Pro/Max subscription",
-    command: "pullfrog auth claude",
-    docs: "https://docs.pullfrog.com/claude-auth",
+    command: "claude setup-token",
+    docs: `${REVIEWX_REPO_URL}#claude-subscription`,
   },
   CODEX_AUTH_JSON: {
     label: "ChatGPT subscription",
-    command: "pullfrog auth codex",
-    docs: "https://docs.pullfrog.com/codex-auth",
+    command: "codex login",
+    docs: `${REVIEWX_REPO_URL}#chatgpt-subscription`,
   },
   GROK_AUTH_JSON: {
     label: "Grok subscription",
-    command: "pullfrog auth grok",
-    docs: "https://docs.pullfrog.com/grok-auth",
+    command: "grok login",
+    docs: `${REVIEWX_REPO_URL}#grok-subscription`,
   },
 };
 
@@ -776,10 +668,7 @@ export function buildRejectedCredentialError(params: {
   reason: string | undefined;
   owner: string;
   name: string;
-  /** stored in Pullfrog (console / `pullfrog auth`) rather than a GitHub Actions secret. */
-  inPullfrogStore: boolean;
 }): string {
-  const settingsUrl = `${getApiUrl()}/console/${params.owner}/${params.name}`;
   const subscription = SUBSCRIPTION_CREDENTIALS[params.credential];
   const detail = params.reason ? ` (\`${params.reason}\`)` : "";
 
@@ -787,24 +676,22 @@ export function buildRejectedCredentialError(params: {
     return [
       `**Your ${subscription.label} ${CREDENTIAL_REJECTED_MARKER}**${detail}, so the agent never ran.`,
       "",
-      `**To fix:** re-authenticate with \`${subscription.command}\`. A subscription credential can't be rotated from a provider dashboard — it has to be re-issued. You can also switch this repo to a model you hold an API key for.`,
+      `**To fix:** re-authenticate with \`${subscription.command}\` and update the GitHub Actions secret. A subscription credential can't be rotated from a provider dashboard — it has to be re-issued. You can also switch this repo to a model you hold an API key for.`,
       "",
-      `[Re-authenticate →](${subscription.docs}) · [Model settings →](${settingsUrl}) · [Ask in Discord →](https://discord.gg/8y96raFg8e)`,
+      `[Re-authenticate →](${subscription.docs})`,
     ].join("\n");
   }
 
-  const where = params.inPullfrogStore
-    ? `[Update it in Pullfrog →](${settingsUrl})`
-    : `[Update the GitHub Actions secret →](https://github.com/${params.owner}/${params.name}/settings/secrets/actions)`;
+  const where = `[Update the GitHub Actions secret →](https://github.com/${params.owner}/${params.name}/settings/secrets/actions)`;
   const keysUrl = providerDashboard(params.credential)?.keys;
   const issue = keysUrl ? `[Issue a new key →](${keysUrl}) · ` : "";
 
   return [
     `**Your \`${params.credential}\` ${CREDENTIAL_REJECTED_MARKER}**${detail}, so the agent never ran.`,
     "",
-    `**To fix:** issue a new key in your provider dashboard and update the copy Pullfrog uses${params.inPullfrogStore ? " in the console" : " in your repo's GitHub Actions secrets"}.`,
+    "**To fix:** issue a new key in your provider dashboard and update your repo's GitHub Actions secret.",
     "",
-    `${issue}${where} · [Model settings →](${settingsUrl}) · [Setup docs →](https://docs.pullfrog.com/keys) · [Ask in Discord →](https://discord.gg/8y96raFg8e)`,
+    `${issue}${where} · [Setup docs →](${REVIEWX_REPO_URL}#model-keys)`,
   ].join("\n");
 }
 
@@ -818,64 +705,6 @@ function providerDashboard(credential: string) {
     if (provider.envVars.includes(credential)) return PROVIDER_DASHBOARDS[id];
   }
   return undefined;
-}
-
-export type RefusedCredential = {
-  name: string;
-  source: CredentialCandidate["source"] | "workflow";
-  verdict: Extract<ProbeVerdict, { status: "rejected" | "exhausted" }>;
-};
-
-/**
- * The credential pool probed every credential configured for the model and
- * none can serve it. One bullet per credential: the probe's own verdict, quoted,
- * plus the remedy its kind and status call for — never inferred from the prose.
- */
-export function buildCredentialPoolRefusedError(params: {
-  model: string;
-  refused: RefusedCredential[];
-  owner: string;
-  name: string;
-}): string {
-  const settingsUrl = `${getApiUrl()}/console/${params.owner}/${params.name}`;
-  return [
-    `**${CREDENTIAL_POOL_REFUSED_MARKER}.** Every credential configured for \`${params.model}\` was rejected or is out of quota, so the agent never ran.`,
-    "",
-    ...params.refused.map(
-      (credential) => `- ${describeRefusal({ ...params, credential, settingsUrl })}`
-    ),
-    "",
-    `[Model settings →](${settingsUrl}) · [Ask in Discord →](https://discord.gg/8y96raFg8e)`,
-  ].join("\n");
-}
-
-function describeRefusal(params: {
-  credential: RefusedCredential;
-  owner: string;
-  name: string;
-  settingsUrl: string;
-}) {
-  const credential = params.credential;
-  const verdict = credential.verdict;
-  const workflow = credential.source === "workflow";
-  const head = `\`${credential.name}\` from ${workflow ? "the workflow" : `${credential.source} scope`}: \`${verdict.detail}\` —`;
-  const subscription = SUBSCRIPTION_CREDENTIALS[credential.name];
-  const dashboard = providerDashboard(credential.name);
-  if (verdict.status === "exhausted" && subscription) {
-    const wait = verdict.resetAt
-      ? `it resets at **${verdict.resetAt.toISOString().slice(0, 16).replace("T", " ")} UTC**; re-trigger after that`
-      : "re-trigger after the limit resets";
-    return `${head} ${wait}, or add an API key for this provider, which Pullfrog falls back to automatically.`;
-  }
-  if (verdict.status === "exhausted")
-    return `${head} add credit or raise its quota with the provider.${dashboard ? ` [Top up →](${dashboard.billing})` : ""}`;
-  if (subscription)
-    return `${head} re-authenticate with \`${subscription.command}\`, or switch this repo to a model you hold an API key for. [Re-authenticate →](${subscription.docs})`;
-  const where = workflow
-    ? `[Update the GitHub Actions secret →](https://github.com/${params.owner}/${params.name}/settings/secrets/actions)`
-    : `[Update it in Pullfrog →](${params.settingsUrl})`;
-  const issue = dashboard?.keys ? `[Issue a new key →](${dashboard.keys}) · ` : "";
-  return `${head} issue a new key and update the copy Pullfrog uses. ${issue}${where}`;
 }
 
 /**
@@ -898,7 +727,6 @@ export function formatApiKeyErrorSummary(params: {
   }
 
   const githubSecretsUrl = `https://github.com/${params.owner}/${params.name}/settings/secrets/actions`;
-  const settingsUrl = `${getApiUrl()}/console/${params.owner}/${params.name}`;
 
   // the subscription hit its usage cap. checked before every credential branch
   // below: nothing is wrong with the token, so a "rotate your key" CTA would
@@ -908,9 +736,9 @@ export function formatApiKeyErrorSummary(params: {
     const reset = CLAUDE_SESSION_LIMIT_PATTERN.exec(params.raw)?.[1]?.trim();
     const resets = reset ? ` It resets at **${reset}**.` : "";
     return [
-      `**Your Claude subscription has hit its usage limit.**${resets} Re-trigger Pullfrog after the reset, or add an \`ANTHROPIC_API_KEY\` repo secret — Pullfrog routes around an exhausted subscription automatically when one is present.`,
+      `**Your Claude subscription has hit its usage limit.**${resets} Re-trigger ReviewX after the reset, or add an \`ANTHROPIC_API_KEY\` repo secret — ReviewX routes around an exhausted subscription automatically when one is present.`,
       "",
-      `[Add repo secret →](${githubSecretsUrl}) · [Model settings →](${settingsUrl}) · [Setup docs →](https://docs.pullfrog.com/keys) · [Ask in Discord →](https://discord.gg/8y96raFg8e)`,
+      `[Add repo secret →](${githubSecretsUrl}) · [Setup docs →](${REVIEWX_REPO_URL}#model-keys)`,
     ].join("\n");
   }
 
@@ -920,7 +748,7 @@ export function formatApiKeyErrorSummary(params: {
     return [
       "**Your stored API key can't be sent as an HTTP header.** It contains a line break or control character — usually a key pasted across several lines. Re-save it as a single line; the key itself is likely fine.",
       "",
-      `[Pullfrog secrets →](${getApiUrl()}/console/${params.owner}) · [Repo secrets →](${githubSecretsUrl}) · [Ask in Discord →](https://discord.gg/8y96raFg8e)`,
+      `[Repo secrets →](${githubSecretsUrl})`,
     ].join("\n");
   }
 
@@ -931,7 +759,7 @@ export function formatApiKeyErrorSummary(params: {
     return [
       `**Your organization has disabled Claude subscription access for Claude Code.** Ask your Claude organization's admin to re-enable it in the Claude Console, or set an \`ANTHROPIC_API_KEY\` for this repo instead, then re-trigger the run.`,
       "",
-      `[Add repo secret →](${githubSecretsUrl}) · [Model settings →](${settingsUrl}) · [Setup docs →](https://docs.pullfrog.com/keys) · [Ask in Discord →](https://discord.gg/8y96raFg8e)`,
+      `[Add repo secret →](${githubSecretsUrl}) · [Setup docs →](${REVIEWX_REPO_URL}#model-keys)`,
     ].join("\n");
   }
 
@@ -942,7 +770,7 @@ export function formatApiKeyErrorSummary(params: {
     return [
       "**Your Kimi membership doesn't include the model this run asked for.** Kimi K3 needs a Moderato plan or above, and K3's 1M context and Kimi K2 HighSpeed need Allegretto or above. Upgrade the membership, or switch this repo to **Kimi K2**, which every tier includes.",
       "",
-      `[Kimi plans →](https://www.kimi.com/membership/pricing) · [Model settings →](${settingsUrl}) · [Setup docs →](https://docs.pullfrog.com/kimi-code) · [Ask in Discord →](https://discord.gg/8y96raFg8e)`,
+      `[Kimi plans →](https://www.kimi.com/membership/pricing) · [Setup docs →](${REVIEWX_REPO_URL}#model-keys)`,
     ].join("\n");
   }
 
@@ -950,9 +778,9 @@ export function formatApiKeyErrorSummary(params: {
   // secrets — "rotate the key, update the GitHub secret" is wrong advice.
   if (isOAuthCredentialExpiredError(params.raw)) {
     return [
-      `**Your provider OAuth credential has expired or been revoked.** Re-authenticate the provider connection (e.g. \`pullfrog auth claude\` / \`pullfrog auth codex\` / \`pullfrog auth grok\`), then re-trigger the run.`,
+      "**Your provider OAuth credential has expired or been revoked.** Re-authenticate with the provider's CLI, update the GitHub Actions secret, then re-trigger the run.",
       "",
-      `[Claude subscription →](https://docs.pullfrog.com/claude-auth) · [ChatGPT subscription →](https://docs.pullfrog.com/codex-auth) · [Model settings →](${settingsUrl}) · [Ask in Discord →](https://discord.gg/8y96raFg8e)`,
+      `[Setup docs →](${REVIEWX_REPO_URL}#model-keys)`,
     ].join("\n");
   }
 
@@ -967,17 +795,13 @@ export function formatApiKeyErrorSummary(params: {
     return [
       `**Your ${details?.label} was rejected during this run.** Re-authenticate with \`${details?.command}\` and re-trigger — a subscription credential can't be rotated from a provider dashboard.`,
       "",
-      `[Re-authenticate →](${details?.docs}) · [Model settings →](${settingsUrl}) · [Ask in Discord →](https://discord.gg/8y96raFg8e)`,
+      `[Re-authenticate →](${details?.docs})`,
     ].join("\n");
   }
 
-  // unlike `buildCredentialRejection`, which probed a named credential, the
-  // mid-run path only has the provider's wording — so it can't know which store
-  // the rejected key came from. naming one sent a customer whose only copy lives
-  // in Pullfrog's store to an empty GitHub Actions settings page.
   return [
-    `**Your LLM provider API key was rejected.** Rotate the key in your provider dashboard, then update the copy Pullfrog uses — wherever you saved it.`,
+    "**Your LLM provider API key was rejected.** Rotate the key in your provider dashboard, then update the GitHub Actions secret.",
     "",
-    `[Pullfrog secrets →](${getApiUrl()}/console/${params.owner}) · [Repo secrets →](${githubSecretsUrl}) · [Model settings →](${settingsUrl}) · [Setup docs →](https://docs.pullfrog.com/keys) · [Ask in Discord →](https://discord.gg/8y96raFg8e)`,
+    `[Repo secrets →](${githubSecretsUrl}) · [Setup docs →](${REVIEWX_REPO_URL}#model-keys)`,
   ].join("\n");
 }

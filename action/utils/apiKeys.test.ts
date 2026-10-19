@@ -92,19 +92,6 @@ describe("validateAgentApiKey — opencode", () => {
     ).toThrow("no API key found");
   });
 
-  it("blames the fetch, not the user, when stored secrets were unreadable", () => {
-    expect(() =>
-      validateAgentApiKey({
-        agent: opencode,
-        model: "openrouter/openai/gpt-6.1-sol",
-        authorized: new Set(),
-        owner,
-        name,
-        secretsUnavailable: true,
-      })
-    ).toThrow("couldn't load your Pullfrog secrets");
-  });
-
   it("passes the auto-select path when an authorized model's key is present", () => {
     process.env.OPENCODE_API_KEY = "sk-test";
     expect(() =>
@@ -147,19 +134,6 @@ describe("validateAgentApiKey — opencode", () => {
         name,
       })
     ).not.toThrow();
-  });
-
-  it("surfaces the Router-unfunded copy on the auto-select path", () => {
-    expect(() =>
-      validateAgentApiKey({
-        agent: opencode,
-        model: undefined,
-        authorized: new Set(["opencode/big-pickle"]),
-        owner,
-        name,
-        routerUnfunded: true,
-      })
-    ).toThrow("your Pullfrog Router balance is empty");
   });
 
   it("throws the auto-select path when the authorized set is empty", () => {

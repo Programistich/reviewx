@@ -1,6 +1,5 @@
 import { primaryRepoState, type ToolState } from "../toolState.ts";
-import { getApiUrl } from "./apiUrl.ts";
-import { buildPullfrogFooter } from "./buildPullfrogFooter.ts";
+import { buildFooter } from "./footer.ts";
 import { log } from "./cli.ts";
 import { createOctokit, parseRepoContext } from "./github.ts";
 import { updateProgressComment } from "./progressComment.ts";
@@ -30,23 +29,9 @@ export async function reportErrorToComment(ctx: ReportErrorParams): Promise<void
     ? Number.parseInt(process.env.GITHUB_RUN_ID, 10)
     : undefined;
 
-  const customParts: string[] = [];
-  if (runId) {
-    const apiUrl = getApiUrl();
-    customParts.push(
-      `[Rerun failed job ➔](${apiUrl}/trigger/${repoContext.owner}/${repoContext.name}/${runId}?action=rerun)`
-    );
-  }
-
-  const footer = buildPullfrogFooter({
-    triggeredBy: true,
+  const footer = buildFooter({
     workflowRun: runId ? { owner: repoContext.owner, repo: repoContext.name, runId } : undefined,
-    customParts,
     model: ctx.toolState.model,
-    clamped: ctx.toolState.modelClamped,
-    unselectedProxyDefault: ctx.toolState.unselectedProxyDefault,
-    oss: ctx.toolState.oss,
-    owner: repoContext.owner,
   });
 
   const body = `${formattedError}${footer}`;
