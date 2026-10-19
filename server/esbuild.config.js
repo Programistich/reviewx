@@ -6,8 +6,9 @@ rmSync("./dist", { recursive: true, force: true });
 mkdirSync("./dist", { recursive: true });
 
 await build({
-  entryPoints: ["./src/index.ts"],
-  outfile: "./dist/index.mjs",
+  entryPoints: { index: "./src/index.ts", "register-app": "./scripts/register-app.ts" },
+  outdir: "./dist",
+  outExtension: { ".js": ".mjs" },
   bundle: true,
   format: "esm",
   platform: "node",

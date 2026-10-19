@@ -14,8 +14,7 @@ RUN pnpm --filter @reviewx/server build
 FROM node:24-alpine
 WORKDIR /app
 ENV NODE_ENV=production PORT=3000
-COPY --from=build /app/server/dist/index.mjs ./index.mjs
-COPY --from=build /app/server/dist/index.mjs.map ./index.mjs.map
+COPY --from=build /app/server/dist/ ./
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://127.0.0.1:3000/healthz || exit 1
