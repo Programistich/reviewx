@@ -1,181 +1,192 @@
-<p align="center">
-  <h1 align="center">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://pullfrog.com/frog-white-200px.png">
-      <img src="https://pullfrog.com/frog-green-200px.png" width="25px" align="center" alt="Green Pullfrog logo" />
-    </picture><br />
-    Pullfrog
-  </h1>
-  <p align="center">
-    The BYOK CodeRabbit that runs in your GitHub Actions
-  </p>
-</p>
+# ReviewX
 
-<p align="center">
-  <a href="https://pullfrog.com">pullfrog.com</a> · <a href="https://docs.pullfrog.com">Docs</a> · <a href="https://pullfrog.com/console">Console</a> · <a href="https://discord.gg/8y96raFg8e">Discord</a>
-</p>
+AI code review for pull requests that runs in **your** GitHub Actions with **your** model keys.
 
-<br/>
+ReviewX is a self-hosted fork of [Pullfrog](https://github.com/pullfrog/pullfrog) (MIT). It wraps the vendor's real coding agent — [Claude Code](https://github.com/anthropics/claude-code), [Codex](https://github.com/openai/codex) or [OpenCode](https://github.com/anomalyco/opencode), picked by the key you provide — and gives it a purpose-built MCP server for GitHub: reading the diff, leaving a review with inline comments, replying in threads, pushing fixes. There is no billing, no console and no stored secrets: the server only turns webhooks into workflow runs and issues short-lived GitHub tokens.
 
-> **New** — Pullfrog is now [free for personal and open-source usage](https://pullfrog.com/blog/free-for-open-source).
+What it does on a PR:
 
-## What is Pullfrog?
+- **Opened / ready for review** → a full review: a severity callout, a summary of the changes, inline comments anchored to lines.
+- **New commits pushed** → an incremental re-review of just the delta, noting which earlier threads are still open.
+- **`@reviewx <anything>`** in a PR comment or review thread → the agent answers, explains, or makes the change and pushes it.
 
-Pullfrog is the BYOK CodeRabbit that runs in your GitHub Actions. It listens for GitHub events — PRs opened, issues created, reviews submitted, CI failures — and triggers agent runs based on your configuration, via a `pullfrog.yml` workflow that uses this open-source action. You control the infrastructure, the keys, and the costs.
+## Setup
 
-Pullfrog is not an agent itself. It wraps vanilla **[Claude Code](https://github.com/anthropics/claude-code)**, **[Codex](https://github.com/openai/codex)**, and **[OpenCode](https://github.com/anomalyco/opencode)**, selecting the one that matches your BYOK or bring-your-own-subscription configuration — so every run uses the vendor's real agent, and it reads the repo-level config you already keep for it: `CLAUDE.md` or `AGENTS.md`, skills, custom commands, and repo-level MCP servers.
+Three steps, about two minutes.
 
-Out of the box, it can:
+### 1. Install the GitHub App
 
-- **Review new PRs** — auto-review every incoming PR; the review verdict can gate merges via requireable status checks.
-- **Address reviews** — leave review comments on a Pullfrog PR as you would for a human colleague, and it addresses them.
-- **Autofix CI** — Pullfrog detects CI failures on its own PRs and attempts a fix. It can be configured to fix human PRs too.
-- **Autofix merge conflicts** — keep PRs mergeable without hand-resolving.
-- **Triage issues** — respond to common questions, apply labels, link related issues and PRs, or draft implementation plans.
-- **Anything ad hoc** — tag `@pullfrog` in any issue, PR, or comment. It pulls in the surrounding context and figures out what to do. Prompt from the [console](https://pullfrog.com/console) for anything else.
+[**Install reviewx-bot →**](https://github.com/apps/reviewx-bot/installations/new) on the repositories you want reviewed. The App only ever acts on repositories it is installed on.
 
-Each automation can be toggled from the dashboard and customized with per-trigger instructions.
+### 2. Add the workflow
 
-## Get started
-
-Run one command in any local repo:
-
-```sh
-npx pullfrog init
-```
-
-Or [install from the browser](https://pullfrog.com/console). Setup takes about two minutes: install the GitHub App, add the `pullfrog.yml` workflow with one click, and pick a model. See [getting started](https://docs.pullfrog.com/getting-started).
-
-## Runs on the subscription you already pay for
-
-No API key required. Connect a coding-agent plan once and every run bills against it:
-
-| Plan | Connect with |
-| --- | --- |
-| [Claude Pro/Max](https://docs.pullfrog.com/claude-auth) | `npx pullfrog auth claude` |
-| [ChatGPT Codex](https://docs.pullfrog.com/codex-auth) | `npx pullfrog auth codex` |
-| [Grok](https://docs.pullfrog.com/grok-auth) | `npx pullfrog auth grok` |
-| [Kimi Code](https://docs.pullfrog.com/kimi-code) | a Kimi Code key as `KIMI_API_KEY` |
-| [OpenCode Go](https://docs.pullfrog.com/models#opencode-zen-and-opencode-go) | an OpenCode key as `OPENCODE_API_KEY` |
-
-## Or bring your own model
-
-Pullfrog works with any LLM provider: Anthropic, OpenAI, Google, xAI, Mistral, DeepSeek, OpenRouter, and more. Switch models with a config change. Two more ways to pay for tokens:
-
-- **Your own API key** — stored in Pullfrog's encrypted secret store or in GitHub Actions secrets, your choice.
-- **Router** — Pullfrog's built-in model access, billed at raw provider cost with no markup.
-
-## Batteries included
-
-- 🛠️ **MCP tools for GitHub** — a purpose-built MCP server for git and GitHub operations: creating PRs, leaving reviews and comments, reading CI logs, managing issues. Every operation goes through Pullfrog's permission layer.
-- 🛡️ **Secure shell access** — shell commands run in an isolated subprocess without access to sensitive environment variables.
-- 🌐 **Headless browser** — for end-to-end tests, screenshots, and UI iteration, with screenshot uploads out of the box.
-- 🔑 **Short-lived credentials** — all GitHub operations use an installation token that is auto-revoked when the run completes. Keys are auto-masked in logs, and only the minimum necessary environment variables pass through to the agent.
-- 🪝 **Hooks** — setup, post-checkout, pre-push, and stop scripts that run inside the agent's permission boundary. A stop script that exits non-zero resumes the agent with the failure as context, so it fixes its own broken push instead of opening a red PR.
-- 🔐 **GitHub-native permissions** — GitHub remains the single source of truth for access control. Users only see repos they already have access to; org settings require an org owner.
-
-## Pricing
-
-Pullfrog is free for developers on personal GitHub accounts and free for open-source repos. Pro is $30/month for the whole organization with no per-run or per-seat billing — required for an org's private repos, optional everywhere else. Pullfrog also covers model cost for impactful open-source projects — [apply here](https://pullfrog.com/for-oss).
-
-## Standalone usage
-
-The same `pullfrog/pullfrog@v0` action that powers the automations above also works as a step in your own workflows — an agent as one stage of a larger pipeline. The action takes a `prompt` and the provider key of your choice; the only permission it needs is `id-token: write`, which lets it mint its own short-lived GitHub token.
+Copy [`templates/reviewx.yml`](templates/reviewx.yml) to `.github/workflows/reviewx.yml` on your default branch. The App dispatches this workflow with a JSON prompt; it never triggers on PR events itself, so it always runs the trusted copy from your default branch and works for PRs from forks.
 
 ```yaml
-# .github/workflows/agent.yml — run any prompt on demand
-name: Agent
+name: ReviewX
+run-name: ${{ inputs.name || github.workflow }}
 on:
   workflow_dispatch:
     inputs:
-      prompt:
-        description: What should the agent do?
-        required: true
+      prompt: { type: string, description: Agent prompt }
+      name: { type: string, description: Run name }
 
 jobs:
-  agent:
+  reviewx:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: pullfrog/pullfrog@v0
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 1 }
+      - uses: programistich/reviewx@v1
         with:
           prompt: ${{ inputs.prompt }}
+          model: ${{ vars.REVIEWX_MODEL }}
+          base_instructions: ${{ vars.REVIEWX_BASE_INSTRUCTIONS }}
+          review_instructions: ${{ vars.REVIEWX_REVIEW_INSTRUCTIONS }}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
-The action also exposes a `result` output that subsequent steps can consume. See [CI integration](https://docs.pullfrog.com/headless-action) for the full guide.
+`id-token: write` is what lets the action exchange its GitHub OIDC token for a scoped installation token at `reviewx.programistich.com`; `contents: read` is all the job token needs. Everything the agent does on GitHub goes through the installation token, which is revoked when the run ends.
 
-<details>
-<summary><strong>Example: auto-generate release notes on new tags</strong></summary>
+### 3. Add a model key
 
-```yaml
-name: Release
-on:
-  push:
-    tags: ['v*']
+Add one of these as a GitHub Actions secret and reference it from the workflow's `env:` block (the template lists the common ones):
 
-permissions:
-  id-token: write
-  contents: write
+| Provider | Secret | Notes |
+| --- | --- | --- |
+| Anthropic | `ANTHROPIC_API_KEY` | runs through Claude Code |
+| Claude Pro / Max subscription | `CLAUDE_CODE_OAUTH_TOKEN` | `claude setup-token` prints it; see [Claude subscription](#claude-subscription) |
+| OpenAI | `OPENAI_API_KEY` | runs through Codex |
+| ChatGPT subscription | `CODEX_AUTH_JSON` | contents of `~/.codex/auth.json` after `codex login`; see [ChatGPT subscription](#chatgpt-subscription) |
+| Google | `GEMINI_API_KEY` | |
+| OpenRouter | `OPENROUTER_API_KEY` | any model OpenRouter serves |
+| xAI, Mistral, DeepSeek, Groq, … | `XAI_API_KEY`, `MISTRAL_API_KEY`, `DEEPSEEK_API_KEY`, `GROQ_API_KEY` | via OpenCode |
 
-jobs:
-  release:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+Then open a pull request. Within a few seconds `reviewx-bot` posts "ReviewX is working…", a `reviewx` check-run appears on the PR head, and the review lands when the run finishes.
 
-      - name: Generate release notes
-        id: notes
-        uses: pullfrog/pullfrog@v0
-        with:
-          prompt: |
-            Generate release notes for ${{ github.ref_name }}.
-            Compare commits between this tag and the previous tag.
-            Format as markdown: summary paragraph, then ### Features, ### Fixes, ### Breaking Changes sections.
-            Omit empty sections. Be concise.
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+## Settings
 
-      # write to file to avoid shell escaping issues with special characters
-      - name: Create GitHub release
-        run: |
-          notesfile="$RUNNER_TEMP/release-notes-$GITHUB_RUN_ID.md"
-          printf '%s' "$NOTES" > "$notesfile"
-          gh release create ${{ github.ref_name }} --title "${{ github.ref_name }}" --notes-file "$notesfile"
-        env:
-          GH_TOKEN: ${{ github.token }}
-          NOTES: ${{ steps.notes.outputs.result }}
+All settings are action inputs. The recommended pattern is to forward [GitHub Variables](https://docs.github.com/en/actions/learn-github-actions/variables) (`${{ vars.REVIEWX_* }}`) so you can change them per repository or organization without editing the workflow; an empty variable means "default".
+
+| Input | Variable (suggested) | Default | What it does |
+| --- | --- | --- | --- |
+| `model` | `REVIEWX_MODEL` | picked from the keys present | `anthropic/claude-sonnet`, `openai/gpt-5`, `google/gemini-pro`, an OpenRouter slug, or a raw models.dev id |
+| `effort` | `REVIEWX_EFFORT` | model default | `low`, `medium`, `high`, `xhigh`, `max`, or a position on `[0,1]` |
+| `base_instructions` | `REVIEWX_BASE_INSTRUCTIONS` | — | standing instructions for every run |
+| `review_instructions` | `REVIEWX_REVIEW_INSTRUCTIONS` | — | instructions for reviews: language, focus areas, severity policy |
+| `fix_instructions` | `REVIEWX_FIX_INSTRUCTIONS` | — | instructions for `@reviewx fix` runs |
+| `task_instructions` | `REVIEWX_TASK_INSTRUCTIONS` | — | instructions for free-form `@reviewx` requests |
+| `push` | | `restricted` | `disabled` (read-only), `restricted` (feature branches only), `enabled` |
+| `shell` | | `restricted` | `disabled`, `restricted` (secrets filtered), `enabled`; non-collaborators never get `enabled` |
+| `pr_approve` | | `disabled` | let the agent submit approving reviews |
+| `review_drafts` | | `disabled` | re-review draft PRs in the post-run safety net |
+| `setup_script` | | — | runs once after checkout (install dependencies) |
+| `post_checkout_script`, `prepush_script`, `stop_script` | | — | lifecycle hooks around the agent's own checkouts and pushes |
+| `status_checks` | | `enabled` | post the `reviewx` check-run |
+| `approval_check` | | `disabled` | post a `reviewx-approval` verdict check (a merge gate) |
+| `progress_comments` | | `enabled` | live task-list updates in the progress comment |
+| `env_allowlist` | | — | extra env vars the restricted shell may see |
+| `timeout` | | `1h` | maximum run duration |
+
+Example — reviews in Russian, bugs only:
+
+```bash
+gh variable set REVIEWX_REVIEW_INSTRUCTIONS -b "Пиши ревью на русском. Фокус: баги, гонки, безопасность. Стиль не комментируй."
 ```
 
-</details>
+Repository-level agent config (`CLAUDE.md`, `AGENTS.md`, skills, custom commands, repo MCP servers) is read by the agent as usual.
 
-<details>
-<summary><strong>Example: prompt from a file</strong></summary>
+## Talking to the bot
 
-For longer prompts you want to version and reuse, commit the prompt text to the repo and pass its path with `prompt_file` instead of inlining it. The path is resolved relative to `GITHUB_WORKSPACE`, and it is mutually exclusive with `prompt` — set exactly one.
+Mention it in any PR comment or review thread. `@reviewx` and `@reviewx-bot` both work.
+
+- `@reviewx` — review (or re-review) the PR.
+- `@reviewx explain the change in src/stats.ts` — answers in a comment.
+- `@reviewx fix` — address the open review comments and push.
+- `@reviewx --model=anthropic/claude-opus --timeout=2h …` — per-run flags.
+
+## Model keys
+
+### Claude subscription
+
+Run `claude setup-token` locally, paste the printed token into the `CLAUDE_CODE_OAUTH_TOKEN` secret, and set `REVIEWX_MODEL` to an Anthropic model. The token is long-lived; re-run `setup-token` and update the secret when Anthropic revokes it.
+
+### ChatGPT subscription
+
+Run `codex login` locally, then store the contents of `~/.codex/auth.json` in the `CODEX_AUTH_JSON` secret. ReviewX installs it into an isolated `CODEX_HOME` on the runner for the duration of the run. Note the chain rotates on use and ReviewX has nowhere to write the rotated copy back, so refresh the secret when runs start failing with an expired token.
+
+### Grok subscription
+
+Store the Grok CLI's `auth.json` in `GROK_AUTH_JSON`.
+
+### Bedrock
+
+Set `REVIEWX_MODEL` to `bedrock/byok`, `BEDROCK_MODEL_ID` to the Bedrock model id, and the AWS credentials (`AWS_BEARER_TOKEN_BEDROCK` + `AWS_REGION`, or the usual `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`). Anthropic ids route through Claude Code, everything else through OpenCode.
+
+### Vertex
+
+Set `REVIEWX_MODEL` to `vertex/byok`, then `VERTEX_MODEL_ID`, `VERTEX_SERVICE_ACCOUNT_JSON` (the service-account key) and `VERTEX_LOCATION`; `GOOGLE_CLOUD_PROJECT` is read from the key when absent.
+
+### Azure
+
+Set `REVIEWX_MODEL` to `azure/byok`, then `AZURE_RESOURCE_NAME`, `AZURE_DEPLOYMENT` and `AZURE_API_KEY`.
+
+### OpenAI-compatible
+
+Set `REVIEWX_MODEL` to `openai-compatible/byok`, then `OPENAI_COMPATIBLE_BASE_URL`, `OPENAI_COMPATIBLE_MODEL` and `OPENAI_COMPATIBLE_API_KEY`.
+
+The action prints exactly which variable is missing when any of these setups is incomplete.
+
+## Workflow
+
+The action only needs `id-token: write` and `contents: read`; it never uses the job's `GITHUB_TOKEN` for GitHub operations. If you would rather not use the ReviewX server at all, set `GH_TOKEN` in the step's `env:` (e.g. `${{ github.token }}` with a wider `permissions:` block, or a token from `actions/create-github-app-token`) and the action uses that for everything.
+
+### Self-hosted runners
+
+Shell commands run in a PID-namespace sandbox (`unshare`). On a Kubernetes/ARC runner whose seccomp profile forbids user namespaces the action detects this and disables the shell tool for the run; allow user-namespace creation in the pod to get it back.
+
+## Flags
+
+Flags in a prompt or in instructions: `--model=<slug>`, `--opus` / `--sonnet` / `--haiku`, `--effort=<level>`, `--timeout=<duration>`, `--notimeout`, `--debug`.
+
+## Standalone usage
+
+The same action works as a step in your own workflows with any prompt, no App required:
 
 ```yaml
-# .github/workflows/triage.yml
-- uses: actions/checkout@v4
-- uses: pullfrog/pullfrog@v0
+- uses: programistich/reviewx@v1
   with:
-    prompt_file: .github/pullfrog/triage.md
+    prompt: Generate release notes for ${{ github.ref_name }} and print them via set_output.
   env:
+    GH_TOKEN: ${{ github.token }}
     ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
-</details>
+`prompt_file` reads the prompt from a file; `output_schema` makes the agent return JSON matching a schema in the `result` output.
 
-<details>
-<summary><strong>Structured output</strong></summary>
+## Running your own server
 
-Pass a JSON Schema via the `output_schema` input to make the agent's output required and validated — the bridge between an agent's reasoning and the hard steps that follow it. See [capturing agent output](https://docs.pullfrog.com/headless-action#capturing-agent-output) for the details and a worked example.
+The server is stateless: it verifies webhook signatures, decides whether an event starts a run, seeds the progress comment and check-run, dispatches the workflow, and exchanges OIDC tokens for installation tokens. Code in [`server/`](server), deployment in [`deploy/`](deploy).
 
-</details>
+1. Register a GitHub App with the manifest flow: `pnpm --filter @reviewx/server register https://your.domain --name your-app --public`, open `/setup`, confirm on GitHub. Credentials land in `.local/<slug>.env`.
+2. Copy them to `deploy/.env`, then `docker compose -f deploy/docker-compose.yml up -d --build` behind your reverse proxy ([`deploy/Caddyfile.snippet`](deploy/Caddyfile.snippet)).
+3. Point the action at it with `API_URL: https://your.domain` in the workflow's `env:`.
+
+## Development
+
+```bash
+pnpm install
+pnpm typecheck && pnpm test
+pnpm --filter @reviewx/action build   # → dist/, committed; CI fails if it is stale
+pnpm --filter @reviewx/server dev     # uses server/.local/reviewxdev.env
+```
+
+Releases: run the **Release** workflow with a version; it rebuilds `dist/`, tags `vX.Y.Z` and moves `v1`.
+
+## License
+
+MIT. Copyright Pullfrog, Inc. for the original work and programistich for the ReviewX modifications; see [LICENSE](LICENSE).
