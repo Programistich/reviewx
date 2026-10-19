@@ -6,12 +6,11 @@
  * Serves a page at <public-url>/setup that posts the manifest to GitHub. After
  * you confirm there, GitHub redirects to /setup/callback?code=…; the script
  * exchanges the code for the App's id, private key and webhook secret, writes
- * them to server/.local/<name>.env and exits.
+ * them to $REVIEWX_LOCAL_DIR/<slug>.env (default: ./.local) and exits.
  */
 import { serve } from "@hono/node-server";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { Hono } from "hono";
 
 const args = process.argv.slice(2);
@@ -73,11 +72,10 @@ app.get("/setup/callback", async (c) => {
     webhook_secret: string;
     html_url: string;
   };
-  const dir = join(dirname(fileURLToPath(import.meta.url)), "..", ".local");
+  const dir = process.env.REVIEWX_LOCAL_DIR ?? join(process.cwd(), ".local");
   mkdirSync(dir, { recursive: true });
   const envPath = join(dir, `${data.slug}.env`);
-  writeFileSync(
-    envPath,
+  const envBody =
     [
       `APP_ID=${data.id}`,
       `APP_PRIVATE_KEY="${data.pem.replace(/\n/g, "\\n")}"`,
@@ -87,9 +85,15 @@ app.get("/setup/callback", async (c) => {
       `PUBLIC_URL=${publicUrl}`,
       `PORT=${port}`,
       "",
-    ].join("\n"),
-    { mode: 0o600 }
-  );
+    ].join("\n");
+  try {
+    writeFileSync(envPath, envBody, { mode: 0o600 });
+  } catch (error) {
+    // the manifest code is single-use: losing the credentials here means re-registering.
+    console.error(`» could not write ${envPath}: ${error}. credentials follow on stdout:`);
+    console.log(envBody);
+    return c.text(`registered ${data.slug} but could not write ${envPath}; see container logs`, 500);
+  }
   console.log(`» registered ${data.slug} (id ${data.id}) → ${envPath}`);
   console.log(`» install it: ${data.html_url}/installations/new`);
   setTimeout(() => process.exit(0), 500);

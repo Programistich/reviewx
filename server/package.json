@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch --experimental-strip-types --env-file=.local/reviewxdev.env src/index.ts",
+    "register": "node --experimental-strip-types scripts/register-app.ts",
     "start": "node dist/index.mjs",
     "build": "node esbuild.config.js",
     "typecheck": "tsc --noEmit",
