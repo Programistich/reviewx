@@ -1,7 +1,7 @@
 /**
  * One-shot GitHub App registration via the manifest flow.
  *
- *   node --experimental-strip-types scripts/register-app.ts <public-url> [--name reviewxdev] [--public]
+ *   node --experimental-strip-types scripts/register-app.ts <public-url> [--name <app-name>] [--public]
  *
  * Serves a page at <public-url>/setup that posts the manifest to GitHub. After
  * you confirm there, GitHub redirects to /setup/callback?code=…; the script
@@ -16,11 +16,11 @@ import { Hono } from "hono";
 const args = process.argv.slice(2);
 const publicUrl = args.find((a) => a.startsWith("http"))?.replace(/\/+$/, "");
 if (!publicUrl) {
-  console.error("usage: register-app.ts <public-url> [--name reviewxdev] [--public]");
+  console.error("usage: register-app.ts <public-url> [--name <app-name>] [--public]");
   process.exit(1);
 }
 const nameIdx = args.indexOf("--name");
-const name = nameIdx === -1 ? "reviewxdev" : (args[nameIdx + 1] ?? "reviewxdev");
+const name = nameIdx === -1 ? "reviewx-dev" : (args[nameIdx + 1] ?? "reviewx-dev");
 const isPublic = args.includes("--public");
 const port = Number.parseInt(process.env.PORT ?? "3000", 10);
 

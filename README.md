@@ -182,7 +182,7 @@ The server is stateless: it verifies webhook signatures, decides whether an even
 pnpm install
 pnpm typecheck && pnpm test
 pnpm --filter @reviewx/action build   # → dist/, committed; CI fails if it is stale
-pnpm --filter @reviewx/server dev     # uses server/.local/reviewxdev.env
+pnpm --filter @reviewx/server dev     # reads server/.local/dev.env (credentials of your own dev App)
 ```
 
 Releases: run the **Release** workflow with a version; it rebuilds `dist/`, tags `vX.Y.Z` and moves `v1`.

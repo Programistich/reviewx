@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --watch --experimental-strip-types --env-file=.local/reviewxdev.env src/index.ts",
+    "dev": "node --watch --experimental-strip-types --env-file=.local/dev.env src/index.ts",
     "register": "node --experimental-strip-types scripts/register-app.ts",
     "start": "node dist/index.mjs",
     "build": "node esbuild.config.js",

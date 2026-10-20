@@ -179659,7 +179659,7 @@ function fixDoubleEscapedString(str) {
 // utils/isReviewx.ts
 function isReviewx(actor) {
   actor = actor?.toLowerCase().replace("[bot]", "");
-  return !!actor && (actor === "reviewx-bot" || actor === "reviewxdev");
+  return !!actor && actor === "reviewx-bot";
 }
 
 // utils/outstandingThreads.ts
