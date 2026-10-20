@@ -4,7 +4,7 @@ import { hasMention, stripMention } from "../src/dispatch/mention.ts";
 import { buildPayload, runName } from "../src/dispatch/payload.ts";
 import { decideTrigger } from "../src/dispatch/triggers.ts";
 
-const ctx = { appSlug: "reviewx", botLogin: "reviewx[bot]" };
+const ctx = { appSlug: "reviewx-bot", botLogin: "reviewx-bot[bot]" };
 
 const user = (login: string) => ({ login, id: 1, type: "User" }) as never;
 const repository = { name: "widget", owner: { login: "acme" }, default_branch: "main" } as never;
@@ -96,19 +96,19 @@ describe("decideTrigger: pull_request", () => {
     expect(
       decideTrigger(
         "pull_request",
-        pullRequestEvent("opened", { pull_request: { user: user("reviewx[bot]") } }),
+        pullRequestEvent("opened", { pull_request: { user: user("reviewx-bot[bot]") } }),
         ctx
       )
     ).toMatchObject({ run: false, reason: "pull request authored by the bot" });
     expect(
-      decideTrigger("pull_request", pullRequestEvent("opened", { sender: "reviewx[bot]" }), ctx)
+      decideTrigger("pull_request", pullRequestEvent("opened", { sender: "reviewx-bot[bot]" }), ctx)
     ).toMatchObject({ run: false, reason: "event sent by the bot itself" });
   });
 });
 
 describe("decideTrigger: comments", () => {
-  it("runs on an @reviewx mention in a PR comment and strips the mention", () => {
-    const d = decideTrigger("issue_comment", issueCommentEvent("@reviewx explain src/math.ts"), ctx);
+  it("runs on an @reviewx-bot mention in a PR comment and strips the mention", () => {
+    const d = decideTrigger("issue_comment", issueCommentEvent("@reviewx-bot explain src/math.ts"), ctx);
     expect(d).toMatchObject({
       run: true,
       sender: "bob",
@@ -117,7 +117,7 @@ describe("decideTrigger: comments", () => {
   });
 
   it("treats a bare mention as a review request", () => {
-    const d = decideTrigger("issue_comment", issueCommentEvent("@ReviewX"), ctx);
+    const d = decideTrigger("issue_comment", issueCommentEvent("@ReviewX-Bot"), ctx);
     expect(d).toMatchObject({ run: true, trigger: { prompt: "" } });
   });
 
@@ -129,19 +129,19 @@ describe("decideTrigger: comments", () => {
     expect(
       decideTrigger(
         "issue_comment",
-        issueCommentEvent("@reviewx hi", { issue: { number: 7, pull_request: undefined } }),
+        issueCommentEvent("@reviewx-bot hi", { issue: { number: 7, pull_request: undefined } }),
         ctx
       )
     ).toMatchObject({ run: false, reason: "comment is on an issue, not a PR" });
     expect(
-      decideTrigger("issue_comment", issueCommentEvent("@reviewx hi", { author: "reviewx[bot]" }), ctx)
+      decideTrigger("issue_comment", issueCommentEvent("@reviewx-bot hi", { author: "reviewx-bot[bot]" }), ctx)
     ).toMatchObject({ run: false });
   });
 
-  it("runs on an @reviewx mention in a review thread", () => {
+  it("runs on an @reviewx-bot mention in a review thread", () => {
     const d = decideTrigger(
       "pull_request_review_comment",
-      reviewCommentEvent("@reviewx is this safe?"),
+      reviewCommentEvent("@reviewx-bot is this safe?"),
       ctx
     );
     expect(d).toMatchObject({
@@ -161,8 +161,8 @@ describe("decideTrigger: comments", () => {
 
 describe("mention helpers", () => {
   it("matches only standalone mentions, case-insensitively", () => {
-    expect(hasMention("@reviewx please", "reviewx-bot")).toBe(true);
-    expect(hasMention("hey @ReviewX,", "reviewx-bot")).toBe(true);
+    expect(hasMention("@reviewx please", "reviewx-bot")).toBe(false);
+    expect(hasMention("hey @ReviewX-Bot,", "reviewx-bot")).toBe(true);
     expect(hasMention("@reviewx-bot look", "reviewx-bot")).toBe(true);
     expect(hasMention("@reviewx-other", "reviewx-bot")).toBe(false);
     expect(hasMention("mail@reviewx.dev", "reviewx-bot")).toBe(false);
@@ -170,7 +170,7 @@ describe("mention helpers", () => {
   });
 
   it("strips every mention and collapses whitespace", () => {
-    expect(stripMention("@reviewx: fix this @reviewx-bot please", "reviewx-bot")).toBe(
+    expect(stripMention("@reviewx-bot: fix this @reviewx-bot please", "reviewx-bot")).toBe(
       "fix this please"
     );
   });
@@ -267,6 +267,6 @@ describe("buildPayload", () => {
     ).toBe("Review PR #7");
     expect(
       runName({ kind: "issue_comment", trigger: "issue_comment_created", number: 7, commentId: 1, prompt: "" })
-    ).toBe("@reviewx on PR #7");
+    ).toBe("@reviewx-bot on PR #7");
   });
 });

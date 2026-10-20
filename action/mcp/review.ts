@@ -1125,7 +1125,7 @@ export async function createAndSubmitWithFooter(
     // comments), so nudging a fix run would be a UX trap.
     const customParts: string[] = [];
     if (!opts.approved) {
-      customParts.push("comment `@reviewx fix` to address this review");
+      customParts.push("comment `@reviewx-bot fix` to address this review");
     }
 
     const footer = buildFooter({

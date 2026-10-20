@@ -642,7 +642,7 @@ function mentionsReviewX(body: string | null | undefined): boolean {
     .filter((line) => !line.trim().startsWith(">"))
     .join("\n")
     .toLowerCase()
-    .includes("@reviewx");
+    .includes("@reviewx-bot");
 }
 
 interface GetReviewDataInput {

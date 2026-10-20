@@ -39,7 +39,7 @@ function buildCommentFooter(ctx: ToolContext, customParts?: string[]): string {
 }
 
 function buildImplementPlanLink(_ctx: ToolContext, _issueNumber: number, _commentId: number): string {
-  return "comment `@reviewx implement this plan` to start";
+  return "comment `@reviewx-bot implement this plan` to start";
 }
 
 function buildEnrichmentLinks(ctx: ToolContext): string[] {
@@ -52,7 +52,7 @@ function buildEnrichmentLinks(ctx: ToolContext): string[] {
   ) {
     return [];
   }
-  return ["comment `@reviewx fix this` to implement"];
+  return ["comment `@reviewx-bot fix this` to implement"];
 }
 
 export function addFooter(ctx: ToolContext, body: string): string {

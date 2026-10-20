@@ -106,6 +106,6 @@ export function runName(trigger: Trigger): string {
       return `Re-review PR #${trigger.number}`;
     case "issue_comment_created":
     case "pull_request_review_comment_created":
-      return `@reviewx on PR #${trigger.number}`;
+      return `@reviewx-bot on PR #${trigger.number}`;
   }
 }

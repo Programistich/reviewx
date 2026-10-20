@@ -8,7 +8,7 @@ What it does on a PR:
 
 - **Opened / ready for review** → a full review: a severity callout, a summary of the changes, inline comments anchored to lines.
 - **New commits pushed** → an incremental re-review of just the delta, noting which earlier threads are still open.
-- **`@reviewx <anything>`** in a PR comment or review thread → the agent answers, explains, or makes the change and pushes it.
+- **`@reviewx-bot <anything>`** in a PR comment or review thread → the agent answers, explains, or makes the change and pushes it.
 
 ## Setup
 
@@ -78,8 +78,8 @@ All settings are action inputs. The recommended pattern is to forward [GitHub Va
 | `effort` | `REVIEWX_EFFORT` | model default | `low`, `medium`, `high`, `xhigh`, `max`, or a position on `[0,1]` |
 | `base_instructions` | `REVIEWX_BASE_INSTRUCTIONS` | — | standing instructions for every run |
 | `review_instructions` | `REVIEWX_REVIEW_INSTRUCTIONS` | — | instructions for reviews: language, focus areas, severity policy |
-| `fix_instructions` | `REVIEWX_FIX_INSTRUCTIONS` | — | instructions for `@reviewx fix` runs |
-| `task_instructions` | `REVIEWX_TASK_INSTRUCTIONS` | — | instructions for free-form `@reviewx` requests |
+| `fix_instructions` | `REVIEWX_FIX_INSTRUCTIONS` | — | instructions for `@reviewx-bot fix` runs |
+| `task_instructions` | `REVIEWX_TASK_INSTRUCTIONS` | — | instructions for free-form `@reviewx-bot` requests |
 | `push` | | `restricted` | `disabled` (read-only), `restricted` (feature branches only), `enabled` |
 | `shell` | | `restricted` | `disabled`, `restricted` (secrets filtered), `enabled`; non-collaborators never get `enabled` |
 | `pr_approve` | | `disabled` | let the agent submit approving reviews |
@@ -102,12 +102,12 @@ Repository-level agent config (`CLAUDE.md`, `AGENTS.md`, skills, custom commands
 
 ## Talking to the bot
 
-Mention it in any PR comment or review thread. `@reviewx` and `@reviewx-bot` both work.
+Mention `@reviewx-bot` in any PR comment or review thread.
 
-- `@reviewx` — review (or re-review) the PR.
-- `@reviewx explain the change in src/stats.ts` — answers in a comment.
-- `@reviewx fix` — address the open review comments and push.
-- `@reviewx --model=anthropic/claude-opus --timeout=2h …` — per-run flags.
+- `@reviewx-bot` — review (or re-review) the PR.
+- `@reviewx-bot explain the change in src/stats.ts` — answers in a comment.
+- `@reviewx-bot fix` — address the open review comments and push.
+- `@reviewx-bot --model=anthropic/claude-opus --timeout=2h …` — per-run flags.
 
 ## Model keys
 

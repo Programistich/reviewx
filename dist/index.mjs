@@ -179716,14 +179716,14 @@ function buildCommentFooter(ctx, customParts) {
   });
 }
 function buildImplementPlanLink(_ctx, _issueNumber, _commentId) {
-  return "comment `@reviewx implement this plan` to start";
+  return "comment `@reviewx-bot implement this plan` to start";
 }
 function buildEnrichmentLinks(ctx) {
   const event = ctx.payload.event;
   if (event.trigger !== "issues_opened" || event.is_pr || ctx.payload.prompt || ctx.toolState.selectedMode === "Build") {
     return [];
   }
-  return ["comment `@reviewx fix this` to implement"];
+  return ["comment `@reviewx-bot fix this` to implement"];
 }
 function addFooter(ctx, body) {
   if (/<br\s*\/?>[ \t]*\n(?!\s*\n)/i.test(body)) {
@@ -180672,7 +180672,7 @@ async function createAndSubmitWithFooter(ctx, params, opts) {
   try {
     const customParts = [];
     if (!opts.approved) {
-      customParts.push("comment `@reviewx fix` to address this review");
+      customParts.push("comment `@reviewx-bot fix` to address this review");
     }
     const footer = buildFooter({
       workflowRun: ctx.runId ? { owner: ctx.repo.owner, repo: ctx.repo.name, runId: ctx.runId, jobId: ctx.jobId } : void 0,
@@ -183584,7 +183584,7 @@ function concurrentThreads(allThreads, threadsForReview, input) {
 }
 function mentionsReviewX(body) {
   if (!body) return false;
-  return body.split(/\r?\n/).filter((line) => !line.trim().startsWith(">")).join("\n").toLowerCase().includes("@reviewx");
+  return body.split(/\r?\n/).filter((line) => !line.trim().startsWith(">")).join("\n").toLowerCase().includes("@reviewx-bot");
 }
 function formatReviewData(input) {
   const rawReviewBody = input.review.body;
