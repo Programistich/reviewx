@@ -101123,7 +101123,7 @@ var import_semver = __toESM(require_semver2(), 1);
 // package.json
 var package_default = {
   name: "@reviewx/action",
-  version: "1.0.0",
+  version: "1.0.1",
   private: true,
   type: "module",
   scripts: {
